@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title if title else 'Azure CSP Billing Portal' }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-+0DmnO2Te74MkRUYw35vj0IadB1iKsFcfoTmya4A1NVuMcZV8K4D4ew3Efr2E1VlzDq+W8sELpAo0P5PLf4KJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <header class="portal-header">
+        <div class="portal-header__inner">
+            <div class="logo">Azure CSP Billing</div>
+            {% if user %}
+            <nav class="header-actions">
+                <a href="/dashboard" class="primary header-btn">Dashboard</a>
+                {% if user.role == 'admin' %}
+                <a href="/uploads" class="primary header-btn">Uploads</a>
+                {% endif %}
+                <a href="/logout" class="primary header-btn logout-btn"><i class="fa-solid fa-right-from-bracket"></i><span>Logout</span></a>
+            </nav>
+            {% endif %}
+        </div>
+    </header>
+    <main class="portal-main">
+        <div class="portal-main__inner">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
+    {% block base_scripts %}{% endblock %}
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+    body { background: linear-gradient(135deg, #0f5aad 0%, #103c85 50%, #0f2e5c 100%); }
+</style>
+{% endblock %}
+{% block content %}
+<section class="login-card">
+    <h1>Welcome back</h1>
+    <p class="subtitle">Choose a role to enter the portal</p>
+    <p class="hint">This environment seeds sample Admin and User personas for quick access.</p>
+    {% if error %}
+    <div class="alert">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="/login" class="form">
+            <label>Role
+                <select name="role" required>
+                    <option value="" disabled selected>Select a role</option>
+                    <option value="admin">Admin</option>
+                    <option value="analyst">User</option>
+                </select>
+            </label>
+            <button type="submit">Enter portal</button>
+        </form>
+</section>
+{% endblock %}

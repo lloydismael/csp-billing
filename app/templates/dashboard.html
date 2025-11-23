@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block base_scripts %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}
+{% block content %}
+<div class="page-grid"
+    data-latest-upload="{{ latest_upload.id if latest_upload else '' }}"
+    data-default-forex="{{ default_forex }}"
+    data-default-margin="{{ default_margin }}"
+    data-default-vat="{{ default_vat }}">
+    <section class="panel metrics">
+        <header>
+            <h2>Billing Summary</h2>
+            <div class="controls">
+                <label>Billing File
+                    <select id="select-upload" {% if (completed_uploads|length) == 0 %}disabled{% endif %}>
+                        <option value="">Select billing file</option>
+                        {% for upload_item in completed_uploads %}
+                        {% set display_date = (upload_item.completed_at or upload_item.created_at).strftime('%Y-%m-%d') %}
+                        <option value="{{ upload_item.id }}" {% if latest_upload and upload_item.id == latest_upload.id %}selected{% endif %}>
+                            {{ display_date }} · {{ upload_item.original_filename }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>Forex
+                    <input type="number" step="0.01" min="0" value="{{ default_forex }}" id="input-forex">
+                </label>
+                <label>Margin
+                    <input type="number" step="0.01" min="0.01" value="{{ default_margin }}" id="input-margin">
+                </label>
+                <label>VAT
+                    <input type="number" step="0.01" min="0" value="{{ default_vat }}" id="input-vat">
+                </label>
+                <button id="btn-refresh" class="primary">Refresh</button>
+            </div>
+        </header>
+        <div class="metric-cards">
+            <article class="card" id="card-pricing">
+                <h3>Pricing Total (Forex)</h3>
+                <p class="value">0</p>
+            </article>
+            <article class="card" id="card-billing">
+                <h3>Billing Total</h3>
+                <p class="value">0</p>
+            </article>
+            <article class="card" id="card-vatex">
+                <h3>Total VAT EX</h3>
+                <p class="value">0</p>
+            </article>
+            <article class="card" id="card-vatinc">
+                <h3>Total VAT Inc</h3>
+                <p class="value">0</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="panel dataset">
+        <header>
+            <div>
+                <h2>Consumption Details</h2>
+                <p class="panel-subtitle">Search and filter customer consumption records</p>
+            </div>
+            <div class="controls">
+                <input type="search" id="search-box" placeholder="Search customer or meter">
+                <select id="filter-customer" data-filter="CustomerName" data-param="customer">
+                    <option value="">Customer</option>
+                </select>
+                <select id="filter-domain" data-filter="CustomerDomainName" data-param="customer_domain">
+                    <option value="">Domain</option>
+                </select>
+                <select id="filter-invoice" data-filter="InvoiceNumber" data-param="invoice">
+                    <option value="">Invoice</option>
+                </select>
+                <button id="btn-invoice" class="ghost">Proceed to Invoice</button>
+                <button id="btn-apply-filters" class="primary">Update</button>
+                <button id="btn-export" class="ghost">Export CSV</button>
+            </div>
+        </header>
+        <div class="column-controls" id="column-controls">
+            <span class="column-controls__label">Columns:</span>
+        </div>
+        <div class="table-scroll">
+            <div id="grid-table"></div>
+        </div>
+        <div class="table-scroll-slider" id="table-scroll-slider-wrapper">
+            <span class="table-scroll-slider__label">Scroll</span>
+            <input type="range" id="table-scroll-slider" min="0" max="100" value="0">
+        </div>
+        <div class="table-footer">
+            <div class="table-info" id="table-info">No records</div>
+        </div>
+    </section>
+
+    <section class="panel charts">
+        <div class="chart-item" style="height:320px;">
+            <h2>Top Customers</h2>
+            <canvas id="chart-customers"></canvas>
+        </div>
+    </section>
+
+    <section class="panel uploads">
+        <header>
+            <h2>Recent Uploads</h2>
+            <a href="/uploads" class="ghost">Manage uploads</a>
+        </header>
+        <table class="uploads-table">
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Status</th>
+                    <th>Rows</th>
+                    <th>Pricing Total</th>
+                    <th>Billing Total</th>
+                    <th>Uploaded</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for upload in uploads %}
+                <tr data-upload-id="{{ upload.id }}">
+                    <td>{{ upload.original_filename }}</td>
+                    <td class="status {{ upload.status }}">{{ upload.status.value }}</td>
+                    <td>{{ '{:,}'.format(upload.row_count) }}</td>
+                    <td>{{ '{:,.2f}'.format(upload.pricing_pretax_total) }}</td>
+                    <td>{{ '{:,.2f}'.format(upload.billing_pretax_total) }}</td>
+                    <td>{{ upload.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                </tr>
+                {% endfor %}
+                {% if uploads|length == 0 %}
+                <tr><td colspan="6">No uploads yet. Ask an admin to ingest a file.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </section>
+</div>
+{% endblock %}
+{% block extra_js %}{% endblock %}

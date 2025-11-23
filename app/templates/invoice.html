@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+    body { background: #f5f7fb; }
+    .invoice-wrapper {
+        max-width: 960px;
+        margin: 0 auto;
+        background: #ffffff;
+        box-shadow: 0 25px 60px rgba(15, 41, 89, 0.12);
+        padding: 48px;
+        border-radius: 12px;
+        font-family: 'Inter', sans-serif;
+        color: #0f2e5c;
+    }
+    .invoice-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 32px;
+        border-bottom: 3px solid #0f5aad;
+        padding-bottom: 24px;
+        margin-bottom: 32px;
+    }
+    .invoice-brand {
+        max-width: 260px;
+    }
+    .invoice-brand h1 {
+        font-size: 28px;
+        font-weight: 700;
+        margin: 0 0 12px 0;
+        color: #0f5aad;
+    }
+    .invoice-brand p {
+        margin: 2px 0;
+        font-size: 14px;
+    }
+    .invoice-meta {
+        text-align: right;
+        font-size: 14px;
+    }
+    .invoice-meta strong {
+        display: inline-block;
+        min-width: 110px;
+        color: #0f5aad;
+    }
+    .invoice-section {
+        margin-bottom: 28px;
+    }
+    .invoice-section h2 {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #0f5aad;
+    }
+    .invoice-section p {
+        margin: 4px 0;
+        font-size: 14px;
+    }
+    .invoice-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        margin-bottom: 12px;
+    }
+    .invoice-table thead {
+        background: #0f5aad;
+        color: #ffffff;
+    }
+    .invoice-table th,
+    .invoice-table td {
+        padding: 10px 12px;
+        border: 1px solid #d8e0f3;
+        vertical-align: top;
+    }
+    .invoice-table tbody tr:nth-child(even) {
+        background: #f0f5ff;
+    }
+    .invoice-table .group-subtotal td {
+        background: #e7efff;
+        font-weight: 600;
+    }
+    .invoice-table .group-subtotal .subtotal-label {
+        text-align: right;
+        color: #0f2e5c;
+    }
+    .invoice-table .group-subtotal .subtotal-amount {
+        text-align: right;
+        color: #0f5aad;
+    }
+    .invoice-table tfoot td {
+        font-weight: 600;
+        background: #0f5aad;
+        color: #ffffff;
+    }
+    .invoice-footer {
+        margin-top: 40px;
+        text-align: left;
+        font-size: 14px;
+        color: #0f5aad;
+    }
+</style>
+{% endblock %}
+{% block base_scripts %}{% endblock %}
+{% block content %}
+<section class="invoice-wrapper">
+    <header class="invoice-header">
+        <div class="invoice-brand">
+            <img src="/static/img/phil-data-logo.png" alt="Phil-Data" style="max-width: 260px; margin-bottom: 12px;">
+            <p>Phil-Data Business Systems, Inc.</p>
+            <p>2129 Chino Roces Avenue</p>
+            <p>1229 - Makati</p>
+            <p>Philippines</p>
+        </div>
+        <div class="invoice-meta">
+            <p><strong>Azure Consumption | Report</strong></p>
+            <p><strong>Invoice Date:</strong> {{ generated_at.strftime('%m/%d/%Y %I:%M:%S %p') }}</p>
+            <p><strong>Invoice Period:</strong> {{ period_label }}</p>
+            <p><strong>Invoice No.:</strong> {{ invoice_number or 'N/A' }}</p>
+        </div>
+    </header>
+
+    <section class="invoice-section">
+        <h2>Bill To</h2>
+        <p><strong>Customer:</strong> {{ customer }}</p>
+        <p><strong>Domain:</strong> {{ domain }}</p>
+    </section>
+
+    <table class="invoice-table">
+        <thead>
+            <tr>
+                <th>Meter Categories</th>
+                <th>Meter Sub-Categories</th>
+                <th>Meter Names</th>
+                <th>Meter Types</th>
+                <th>Units</th>
+                <th style="text-align: right;">Quantities</th>
+                <th style="text-align: right;">Unit Prices</th>
+                <th style="text-align: right;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if grouped_items|length > 0 %}
+                {% for group in grouped_items %}
+                    {% set row_count = group.line_items|length %}
+                    {% for item in group.line_items %}
+                    <tr>
+                        {% if loop.first %}
+                        <td rowspan="{{ row_count }}">{{ group.meter_category or '-' }}</td>
+                        <td rowspan="{{ row_count }}">{{ group.meter_sub_category or '-' }}</td>
+                        {% endif %}
+                        <td>{{ item.meter_name or '-' }}</td>
+                        <td>{{ item.meter_type or '-' }}</td>
+                        <td>{{ item.unit or '-' }}</td>
+                        <td style="text-align: right;">{{ '{:,.2f}'.format(item.quantity) }}</td>
+                        <td style="text-align: right;">₱{{ '{:,.2f}'.format(item.unit_price) }}</td>
+                        <td style="text-align: right;">₱{{ '{:,.2f}'.format(item.total_vat_inc) }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="group-subtotal">
+                        <td colspan="2"></td>
+                        <td colspan="5" class="subtotal-label">Subtotal for {{ group.meter_sub_category or 'Unspecified' }}</td>
+                        <td class="subtotal-amount">₱{{ '{:,.2f}'.format(group.subtotal_vat_inc) }}</td>
+                    </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="8" style="text-align: center;">No consumption records were found for the selected filters.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="6" style="text-align: right;">Total VAT Inclusive:</td>
+                <td></td>
+                <td style="text-align: right;">₱{{ '{:,.2f}'.format(total_vat_inc) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div class="invoice-footer">
+        Thank you for your business!
+    </div>
+</section>
+{% endblock %}

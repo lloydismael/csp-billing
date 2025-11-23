@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel uploads-admin">
+    <header>
+        <div>
+            <h1>Manage Uploads</h1>
+            <p class="panel-subtitle">Upload partner billing CSV files</p>
+        </div>
+        <div class="hint">Maximum size: {{ max_size }} MB</div>
+    </header>
+    <form class="upload-form" method="post" action="/uploads" enctype="multipart/form-data">
+        <label class="file-input">
+            <span>Select CSV file</span>
+            <input type="file" name="file" accept=".csv" required>
+        </label>
+        <button type="submit" class="primary">Upload</button>
+    </form>
+    <table class="uploads-table">
+        <thead>
+            <tr>
+                <th>File</th>
+                <th>Status</th>
+                <th>Rows</th>
+                <th>Pricing Total</th>
+                <th>Billing Total</th>
+                <th>Uploaded</th>
+                <th>Completed</th>
+                <th>Error</th>
+                   <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for upload in uploads %}
+            <tr>
+                <td>{{ upload.original_filename }}</td>
+                <td class="status {{ upload.status }}">{{ upload.status.value }}</td>
+                <td>{{ '{:,}'.format(upload.row_count) }}</td>
+                <td>{{ '{:,.2f}'.format(upload.pricing_pretax_total) }}</td>
+                <td>{{ '{:,.2f}'.format(upload.billing_pretax_total) }}</td>
+                <td>{{ upload.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{% if upload.completed_at %}{{ upload.completed_at.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
+                <td>{{ upload.error_message if upload.error_message else '' }}</td>
+                   <td>
+                       <form method="post" action="/uploads/{{ upload.id }}/delete" onsubmit="return confirm('Delete this upload and associated data?');">
+                           <button type="submit" class="ghost danger">Delete</button>
+                       </form>
+                   </td>
+            </tr>
+            {% endfor %}
+            {% if uploads|length == 0 %}
+               <tr><td colspan="9">No data ingested yet.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

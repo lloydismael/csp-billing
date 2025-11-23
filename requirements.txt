@@ -1,0 +1,12 @@
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+sqlmodel==0.0.14
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-multipart==0.0.9
+jinja2==3.1.4
+polars==0.20.17
+duckdb==0.10.2
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+itsdangerous==2.1.2
