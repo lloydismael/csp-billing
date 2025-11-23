@@ -1,26 +1,55 @@
 {% extends "base.html" %}
-{% block extra_head %}
-<style>
-    body { background: linear-gradient(135deg, #0f5aad 0%, #103c85 50%, #0f2e5c 100%); }
-</style>
-{% endblock %}
+{% block body_class %}page-login{% endblock %}
 {% block content %}
-<section class="login-card">
-    <h1>Welcome back</h1>
-    <p class="subtitle">Choose a role to enter the portal</p>
-    <p class="hint">This environment seeds sample Admin and User personas for quick access.</p>
-    {% if error %}
-    <div class="alert">{{ error }}</div>
-    {% endif %}
-    <form method="post" action="/login" class="form">
-            <label>Role
-                <select name="role" required>
-                    <option value="" disabled selected>Select a role</option>
-                    <option value="admin">Admin</option>
-                    <option value="analyst">User</option>
-                </select>
+<section class="login-hero">
+    <div class="login-hero__canvas" aria-hidden="true">
+        <span class="login-hero__shape login-hero__shape--one"></span>
+        <span class="login-hero__shape login-hero__shape--two"></span>
+        <span class="login-hero__shape login-hero__shape--three"></span>
+        <span class="login-hero__shape login-hero__shape--four"></span>
+        <span class="login-hero__shape login-hero__shape--five"></span>
+    </div>
+    <div class="login-card login-card--glass">
+        <div class="login-card__brand">
+            <img src="/static/img/phil-data-logo.png" alt="Phil-Data Business Systems logo" class="login-card__logo">
+            <div class="login-card__brand-text">
+                <span class="login-card__brand-name">Phil-Data</span>
+                <span class="login-card__brand-subtitle">Business Systems, Inc.</span>
+            </div>
+        </div>
+        <h1 class="login-card__heading">Login</h1>
+        <p class="login-card__subtitle">Choose a role to enter the portal</p>
+        <p class="login-card__helper">This preview environment seeds sample Admin and User personas so you can explore immediately.</p>
+        {% if error %}
+        <div class="alert">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/login" class="login-form">
+            <label class="login-field">
+                <span class="login-field__label">Role</span>
+                <div class="login-field__control">
+                    <span class="login-field__icon"><i class="fa-solid fa-user-shield" aria-hidden="true"></i></span>
+                    <select name="role" required aria-label="Select role">
+                        <option value="" disabled selected>Select a role</option>
+                        <option value="admin">Admin</option>
+                        <option value="analyst">User</option>
+                    </select>
+                </div>
             </label>
-            <button type="submit">Enter portal</button>
+            <button type="submit" class="login-card__submit">Sign in</button>
         </form>
+        <div class="login-card__divider" aria-hidden="true"><span>or continue with</span></div>
+        <div class="login-card__social" aria-hidden="true">
+            <button type="button" class="login-social" title="Google sign-in coming soon">
+                <i class="fa-brands fa-google" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="login-social" title="GitHub sign-in coming soon">
+                <i class="fa-brands fa-github" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="login-social" title="Microsoft sign-in coming soon">
+                <i class="fa-brands fa-microsoft" aria-hidden="true"></i>
+            </button>
+        </div>
+        <p class="login-card__footer">Don't have access yet? <span>Request it from an administrator.</span></p>
+    </div>
 </section>
 {% endblock %}

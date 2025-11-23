@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="/static/css/styles.css">
     {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     <header class="portal-header">
         <div class="portal-header__inner">
             <div class="logo">Azure CSP Billing</div>
