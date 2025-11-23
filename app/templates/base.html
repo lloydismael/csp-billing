@@ -16,11 +16,11 @@
             <div class="logo">Azure CSP Billing</div>
             {% if user %}
             <nav class="header-actions">
-                <a href="/dashboard" class="primary header-btn">Dashboard</a>
+                <a href="/dashboard" class="header-btn header-btn--ios">Dashboard</a>
                 {% if user.role == 'admin' %}
-                <a href="/uploads" class="primary header-btn">Uploads</a>
+                <a href="/uploads" class="header-btn header-btn--ios">Uploads</a>
                 {% endif %}
-                <a href="/logout" class="primary header-btn logout-btn"><i class="fa-solid fa-right-from-bracket"></i><span>Logout</span></a>
+                <a href="/logout" class="header-btn header-btn--ios logout-btn"><i class="fa-solid fa-right-from-bracket"></i><span>Logout</span></a>
             </nav>
             {% endif %}
         </div>

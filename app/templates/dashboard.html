@@ -32,7 +32,7 @@
                 <label>VAT
                     <input type="number" step="0.01" min="0" value="{{ default_vat }}" id="input-vat">
                 </label>
-                <button id="btn-refresh" class="primary">Refresh</button>
+                <button id="btn-refresh" class="button-ios button-ios--accent">Refresh</button>
             </div>
         </header>
         <div class="metric-cards">
@@ -72,9 +72,9 @@
                 <select id="filter-invoice" data-filter="InvoiceNumber" data-param="invoice">
                     <option value="">Invoice</option>
                 </select>
-                <button id="btn-invoice" class="ghost">Proceed to Invoice</button>
-                <button id="btn-apply-filters" class="primary">Update</button>
-                <button id="btn-export" class="ghost">Export CSV</button>
+                <button id="btn-invoice" class="button-ios button-ios--accent">Invoice</button>
+                <button id="btn-apply-filters" class="button-ios button-ios--accent">Update</button>
+                <button id="btn-export" class="button-ios button-ios--accent">Export</button>
             </div>
         </header>
         <div class="column-controls" id="column-controls">
@@ -102,7 +102,7 @@
     <section class="panel uploads">
         <header>
             <h2>Recent Uploads</h2>
-            <a href="/uploads" class="ghost">Manage uploads</a>
+            <a href="/uploads" class="button-ios button-ios--accent">Manage Uploads</a>
         </header>
         <table class="uploads-table">
             <thead>
