@@ -4,28 +4,17 @@
 <section class="login-hero">
     <div class="login-card login-card--glass">
         <div class="login-card__brand">
-            <img src="/static/img/phil-data-logo.png" alt="Phil-Data Business Systems logo" class="login-card__logo">
+            <img src="/static/img/phil-data-full-logo.png" alt="Phil-Data Business Systems logo" class="login-card__logo">
             <div class="login-card__brand-text">
                 <span class="login-card__brand-name">Phil-Data</span>
                 <span class="login-card__brand-subtitle">Business Systems, Inc.</span>
             </div>
         </div>
-        <p class="login-card__helper">Use the quick role selectors to enter the Azure consumption portal.</p>
+        <p class="login-card__helper">Choose a persona below to access the Azure consumption portal.</p>
         {% if error %}
         <div class="alert">{{ error }}</div>
         {% endif %}
         <form method="post" action="/login" class="login-form">
-            <label class="login-input">
-                <span>Email</span>
-                <input type="email" name="display_email" placeholder="username@gmail.com" autocomplete="off">
-            </label>
-            <label class="login-input">
-                <span>Password</span>
-                <input type="password" name="display_password" placeholder="Password" autocomplete="off">
-            </label>
-            <div class="login-form__meta">
-                <a href="#" class="login-link">Forgot Password?</a>
-            </div>
             <fieldset class="login-role">
                 <legend>Quick role selection</legend>
                 <div class="login-role__choices">
