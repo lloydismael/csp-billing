@@ -117,16 +117,26 @@
         text-align: right;
         color: #0f5aad;
     }
-    .invoice-table tfoot td {
-        font-weight: 600;
-        background: #0f5aad;
-        color: #ffffff;
-    }
     .invoice-footer {
         margin-top: 40px;
         text-align: left;
         font-size: 14px;
         color: #0f5aad;
+    }
+    .invoice-summary {
+        margin-top: 16px;
+        display: flex;
+        justify-content: flex-end;
+        font-weight: 700;
+        font-size: 16px;
+        color: #0f5aad;
+    }
+    .invoice-summary__label {
+        margin-right: 12px;
+    }
+    .invoice-summary__amount {
+        min-width: 160px;
+        text-align: right;
     }
     @media print {
         body { background: #ffffff !important; }
@@ -140,6 +150,9 @@
             padding: 32px;
         }
         .invoice-wrapper img { filter: none; }
+        a[href]:after {
+            content: none !important;
+        }
     }
 </style>
 {% endblock %}
@@ -217,14 +230,12 @@
                 </tr>
             {% endif %}
         </tbody>
-        <tfoot>
-            <tr>
-                <td colspan="6" style="text-align: right;">Total VAT Inclusive:</td>
-                <td></td>
-                <td style="text-align: right;">₱{{ '{:,.2f}'.format(total_vat_inc) }}</td>
-            </tr>
-        </tfoot>
     </table>
+
+    <div class="invoice-summary">
+        <span class="invoice-summary__label">Total VAT Inclusive:</span>
+        <span class="invoice-summary__amount">₱{{ '{:,.2f}'.format(total_vat_inc) }}</span>
+    </div>
 
     <div class="invoice-footer">
         Thank you for your business!
