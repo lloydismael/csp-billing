@@ -2,13 +2,6 @@
 {% block body_class %}page-login{% endblock %}
 {% block content %}
 <section class="login-hero">
-    <div class="login-hero__canvas" aria-hidden="true">
-        <span class="login-hero__shape login-hero__shape--one"></span>
-        <span class="login-hero__shape login-hero__shape--two"></span>
-        <span class="login-hero__shape login-hero__shape--three"></span>
-        <span class="login-hero__shape login-hero__shape--four"></span>
-        <span class="login-hero__shape login-hero__shape--five"></span>
-    </div>
     <div class="login-card login-card--glass">
         <div class="login-card__brand">
             <img src="/static/img/phil-data-logo.png" alt="Phil-Data Business Systems logo" class="login-card__logo">
@@ -18,23 +11,32 @@
             </div>
         </div>
         <h1 class="login-card__heading">Login</h1>
-        <p class="login-card__subtitle">Choose a role to enter the portal</p>
-        <p class="login-card__helper">This preview environment seeds sample Admin and User personas so you can explore immediately.</p>
+        <p class="login-card__subtitle">Sign in to continue managing Azure Consumption</p>
+        <p class="login-card__helper">Use the pre-seeded personas below to explore the portal immediately.</p>
         {% if error %}
         <div class="alert">{{ error }}</div>
         {% endif %}
         <form method="post" action="/login" class="login-form">
-            <label class="login-field">
-                <span class="login-field__label">Role</span>
-                <div class="login-field__control">
-                    <span class="login-field__icon"><i class="fa-solid fa-user-shield" aria-hidden="true"></i></span>
-                    <select name="role" required aria-label="Select role">
-                        <option value="" disabled selected>Select a role</option>
-                        <option value="admin">Admin</option>
-                        <option value="analyst">User</option>
-                    </select>
-                </div>
+            <label class="login-input">
+                <span>Email</span>
+                <input type="email" name="display_email" placeholder="username@gmail.com" autocomplete="off">
             </label>
+            <label class="login-input">
+                <span>Password</span>
+                <input type="password" name="display_password" placeholder="Password" autocomplete="off">
+            </label>
+            <div class="login-form__meta">
+                <a href="#" class="login-link">Forgot Password?</a>
+            </div>
+            <fieldset class="login-role">
+                <legend>Quick role selection</legend>
+                <div class="login-role__choices">
+                    <input type="radio" name="role" value="admin" id="role-admin" required checked>
+                    <label for="role-admin">Admin</label>
+                    <input type="radio" name="role" value="analyst" id="role-analyst">
+                    <label for="role-analyst">User</label>
+                </div>
+            </fieldset>
             <button type="submit" class="login-card__submit">Sign in</button>
         </form>
         <div class="login-card__divider" aria-hidden="true"><span>or continue with</span></div>
@@ -45,11 +47,11 @@
             <button type="button" class="login-social" title="GitHub sign-in coming soon">
                 <i class="fa-brands fa-github" aria-hidden="true"></i>
             </button>
-            <button type="button" class="login-social" title="Microsoft sign-in coming soon">
-                <i class="fa-brands fa-microsoft" aria-hidden="true"></i>
+            <button type="button" class="login-social" title="Facebook sign-in coming soon">
+                <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
             </button>
         </div>
-        <p class="login-card__footer">Don't have access yet? <span>Request it from an administrator.</span></p>
+        <p class="login-card__footer">Don't have an account yet? <a href="#">Register for free</a></p>
     </div>
 </section>
 {% endblock %}
