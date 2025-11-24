@@ -2,6 +2,37 @@
 {% block extra_head %}
 <style>
     body { background: #f5f7fb; }
+    .invoice-actions {
+        max-width: 960px;
+        margin: 0 auto 16px;
+        display: flex;
+        justify-content: flex-end;
+    }
+    .invoice-actions button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.65rem 1.4rem;
+        border-radius: 999px;
+        border: 1px solid rgba(15, 90, 173, 0.2);
+        background: linear-gradient(135deg, #0c3f93, #031c53);
+        color: #ffffff;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        box-shadow: 0 12px 24px rgba(4, 28, 82, 0.25);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .invoice-actions button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 16px 32px rgba(3, 22, 66, 0.32);
+    }
+    .invoice-actions button:active {
+        transform: translateY(1px);
+    }
+    .invoice-actions button i {
+        font-size: 0.95rem;
+    }
     .invoice-wrapper {
         max-width: 960px;
         margin: 0 auto;
@@ -97,10 +128,29 @@
         font-size: 14px;
         color: #0f5aad;
     }
+    @media print {
+        body { background: #ffffff !important; }
+        .portal-header, .invoice-actions, .portal-main { padding: 0 !important; }
+        .portal-header, .invoice-actions { display: none !important; }
+        .portal-main__inner { padding: 0 !important; }
+        .invoice-wrapper {
+            box-shadow: none;
+            border-radius: 0;
+            margin: 0;
+            padding: 32px;
+        }
+        .invoice-wrapper img { filter: none; }
+    }
 </style>
 {% endblock %}
 {% block base_scripts %}{% endblock %}
 {% block content %}
+<div class="invoice-actions">
+    <button type="button" id="btn-print-invoice">
+        <i class="fa-solid fa-print" aria-hidden="true"></i>
+        <span>Print / Save PDF</span>
+    </button>
+</div>
 <section class="invoice-wrapper">
     <header class="invoice-header">
         <div class="invoice-brand">
@@ -180,4 +230,11 @@
         Thank you for your business!
     </div>
 </section>
+{% endblock %}
+{% block extra_js %}
+<script>
+    document.getElementById("btn-print-invoice")?.addEventListener("click", () => {
+        window.print();
+    });
+</script>
 {% endblock %}
