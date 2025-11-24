@@ -499,25 +499,27 @@ body {
     pointer-events: none;
 }
 
+
 .login-card__brand {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.6rem;
+    gap: 1.25rem;
     text-align: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2.5rem;
     color: rgba(13, 27, 61, 0.92);
 }
 
 .login-card__logo {
-    width: 72px;
-    height: 72px;
+    width: 140px;
+    height: 140px;
     object-fit: contain;
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.45);
-    padding: 0.6rem;
-    box-shadow: 0 14px 28px rgba(17, 70, 176, 0.28);
+    border-radius: 36px;
+    background: rgba(255, 255, 255, 0.48);
+    padding: 1rem;
+    box-shadow: 0 28px 50px rgba(12, 52, 138, 0.32);
+    border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .login-card__brand-text {
@@ -525,37 +527,24 @@ body {
     flex-direction: column;
     font-weight: 600;
     letter-spacing: -0.01em;
+    gap: 0.3rem;
 }
 
 .login-card__brand-name {
-    font-size: 1.3rem;
+    font-size: 1.6rem;
 }
 
 .login-card__brand-subtitle {
-    font-size: 0.85rem;
-    color: rgba(13, 27, 61, 0.75);
-}
-
-.login-card__heading {
-    margin: 0 0 0.4rem;
-    font-size: 2.25rem;
-    letter-spacing: -0.02em;
-    text-align: center;
-    color: rgba(13, 27, 61, 0.92);
-}
-
-.login-card__subtitle {
-    margin: 0;
-    font-size: 1rem;
-    text-align: center;
-    color: rgba(13, 27, 61, 0.63);
+    font-size: 0.95rem;
+    color: rgba(13, 27, 61, 0.7);
+    letter-spacing: 0.02em;
 }
 
 .login-card__helper {
-    margin: 1.2rem 0 2rem;
-    font-size: 0.9rem;
+    margin: 0 0 2.5rem;
+    font-size: 1rem;
     text-align: center;
-    color: rgba(13, 27, 61, 0.55);
+    color: rgba(13, 27, 61, 0.58);
 }
 
 .login-form {
@@ -693,59 +682,6 @@ body {
     outline-offset: 2px;
 }
 
-.login-card__divider {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin: 2.2rem 0 1.4rem;
-    color: rgba(13, 27, 61, 0.5);
-    font-size: 0.85rem;
-}
-
-.login-card__divider::before,
-.login-card__divider::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(13, 27, 61, 0), rgba(13, 27, 61, 0.25), rgba(13, 27, 61, 0));
-}
-
-.login-card__social {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-}
-
-.login-social {
-    width: 48px;
-    height: 48px;
-    border-radius: 16px;
-    border: 1px solid rgba(13, 27, 61, 0.1);
-    background: rgba(255, 255, 255, 0.85);
-    color: #0d1b3d;
-    display: grid;
-    place-items: center;
-    font-size: 1.2rem;
-    box-shadow: 0 12px 30px rgba(6, 28, 80, 0.22);
-    cursor: default;
-}
-
-.login-card__footer {
-    margin-top: 2rem;
-    font-size: 0.85rem;
-    text-align: center;
-    color: rgba(13, 27, 61, 0.6);
-}
-
-.login-card__footer a {
-    color: rgba(26, 110, 255, 0.9);
-    font-weight: 600;
-    text-decoration: none;
-}
-
-.login-card__footer a:hover {
-    text-decoration: underline;
-}
 
 .page-login .alert {
     background: rgba(255, 85, 85, 0.15);

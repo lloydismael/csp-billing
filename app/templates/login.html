@@ -10,9 +10,7 @@
                 <span class="login-card__brand-subtitle">Business Systems, Inc.</span>
             </div>
         </div>
-        <h1 class="login-card__heading">Login</h1>
-        <p class="login-card__subtitle">Sign in to continue managing Azure Consumption</p>
-        <p class="login-card__helper">Use the pre-seeded personas below to explore the portal immediately.</p>
+        <p class="login-card__helper">Use the quick role selectors to enter the Azure consumption portal.</p>
         {% if error %}
         <div class="alert">{{ error }}</div>
         {% endif %}
@@ -39,19 +37,6 @@
             </fieldset>
             <button type="submit" class="login-card__submit">Sign in</button>
         </form>
-        <div class="login-card__divider" aria-hidden="true"><span>or continue with</span></div>
-        <div class="login-card__social" aria-hidden="true">
-            <button type="button" class="login-social" title="Google sign-in coming soon">
-                <i class="fa-brands fa-google" aria-hidden="true"></i>
-            </button>
-            <button type="button" class="login-social" title="GitHub sign-in coming soon">
-                <i class="fa-brands fa-github" aria-hidden="true"></i>
-            </button>
-            <button type="button" class="login-social" title="Facebook sign-in coming soon">
-                <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
-            </button>
-        </div>
-        <p class="login-card__footer">Don't have an account yet? <a href="#">Register for free</a></p>
     </div>
 </section>
 {% endblock %}
