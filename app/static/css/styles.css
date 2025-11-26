@@ -647,6 +647,13 @@ body {
     outline-offset: 2px;
 }
 
+.login-footer {
+    margin-top: 2.5rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: rgba(13, 27, 61, 0.6);
+}
+
 
 .page-login .alert {
     background: rgba(255, 85, 85, 0.15);
