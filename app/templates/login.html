@@ -6,20 +6,36 @@
         <div class="login-card__brand">
             <img src="/static/img/phil-data-full-logo.png" alt="Phil-Data Business Systems logo" class="login-card__logo">
         </div>
-        <p class="login-card__helper">Choose a persona below to access the Azure consumption portal.</p>
+        <p class="login-card__helper">Sign in with your assigned credentials to continue.</p>
         {% if error %}
         <div class="alert">{{ error }}</div>
         {% endif %}
         <form method="post" action="/login" class="login-form">
-            <fieldset class="login-role">
-                <legend>Quick role selection</legend>
-                <div class="login-role__choices">
-                    <input type="radio" name="role" value="admin" id="role-admin" required checked>
-                    <label for="role-admin">Admin</label>
-                    <input type="radio" name="role" value="analyst" id="role-analyst">
-                    <label for="role-analyst">User</label>
-                </div>
-            </fieldset>
+            <div class="login-form__field">
+                <label for="username">Username</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    value="{{ username | default('') }}"
+                    required
+                    autocomplete="username"
+                    class="login-form__input"
+                    placeholder="Enter username"
+                >
+            </div>
+            <div class="login-form__field">
+                <label for="password">Password</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    required
+                    autocomplete="current-password"
+                    class="login-form__input"
+                    placeholder="Enter password"
+                >
+            </div>
             <button type="submit" class="login-card__submit">Sign in</button>
         </form>
         <footer class="login-footer">Developed by ESG 2025</footer>

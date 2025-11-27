@@ -12,8 +12,6 @@ from app.models import Upload, UploadStatus, User, UserRole
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-DEFAULT_PASSWORD = "@Password"
-
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
@@ -121,23 +119,33 @@ def ensure_default_accounts(session: Session) -> None:
             "email": "Admin",
             "full_name": "Portal Administrator",
             "role": UserRole.admin,
+            "password": "Admin",
         },
         {
             "email": "User",
             "full_name": "Portal Analyst",
             "role": UserRole.analyst,
+            "password": "User",
         },
     ]
 
+    updated = False
     for spec in defaults:
         normalized_email = spec["email"].lower()
         existing = session.exec(select(User).where(User.email == normalized_email)).first()
         if existing:
+            if not verify_password(spec["password"], existing.password_hash):
+                existing.password_hash = get_password_hash(spec["password"])
+                updated = True
             continue
         create_user(
             session,
             email=normalized_email,
-            password=DEFAULT_PASSWORD,
+            password=spec["password"],
             full_name=spec["full_name"],
             role=spec["role"],
         )
+        updated = True
+
+    if updated:
+        session.commit()

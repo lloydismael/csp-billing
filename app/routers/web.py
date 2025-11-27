@@ -29,25 +29,18 @@ async def landing(request: Request, user: User | None = Depends(auth.get_optiona
 @router.post("/login")
 async def login(
     request: Request,
-    role: str = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
     session=Depends(get_session),
 ):
-    try:
-        selected_role = UserRole(role)
-    except ValueError:
-        return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "error": "Select a valid role"},
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
-    user = auth.get_user_by_role(session, selected_role)
+    user = auth.authenticate_user(session, username, password)
     if not user:
         return templates.TemplateResponse(
             "login.html",
-            {"request": request, "error": "Role not available. Contact an administrator."},
-            status_code=status.HTTP_404_NOT_FOUND,
+            {"request": request, "error": "Invalid username or password.", "username": username},
+            status_code=status.HTTP_401_UNAUTHORIZED,
         )
+
     auth.login_user(request, user)
     return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
 
