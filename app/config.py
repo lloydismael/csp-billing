@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,6 +14,9 @@ class Settings(BaseSettings):
     chunk_size: int = 150_000
     max_upload_size_mb: int = 350
     default_vat: float = 1.12
+    duckdb_threads: int = max(1, os.cpu_count() or 1)
+    polars_infer_rows: int = 512
+    polars_row_group_size: int = 256_000
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

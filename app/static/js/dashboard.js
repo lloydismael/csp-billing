@@ -123,10 +123,15 @@ const initDashboard = () => {
     const columnDefs = [
         { title: 'Customer', field: 'CustomerName', width: 220 },
         { title: 'Domain', field: 'CustomerDomainName', width: 220 },
+        { title: 'Entitlement', field: 'EntitlementDescription', width: 220, headerFilter: 'input', headerFilterPlaceholder: 'Filter entitlement', controlGroup: 'entitlement' },
+        { title: 'Entitlement ID', field: 'EntitlementId', width: 200, headerFilter: 'input', headerFilterPlaceholder: 'Filter entitlement id', controlGroup: 'entitlement' },
         { title: 'Tags', field: 'Tags', width: 220 },
         { title: 'Invoice', field: 'InvoiceNumber', width: 140 },
         { title: 'Product', field: 'ProductName', width: 220 },
-        { title: 'Meter Category', field: 'MeterCategory', width: 160 },
+        { title: 'Meter Category', field: 'MeterCategory', width: 160, headerFilter: 'input', headerFilterPlaceholder: 'Filter category', controlGroup: 'meter' },
+        { title: 'Meter Subcategory', field: 'MeterSubCategory', width: 180, headerFilter: 'input', headerFilterPlaceholder: 'Filter subcategory', controlGroup: 'meter' },
+        { title: 'Meter Name', field: 'MeterName', width: 200, headerFilter: 'input', headerFilterPlaceholder: 'Filter name', controlGroup: 'meter' },
+        { title: 'Meter Type', field: 'MeterType', width: 160, headerFilter: 'input', headerFilterPlaceholder: 'Filter type', controlGroup: 'meter' },
         { title: 'Usage Date', field: 'UsageDate', width: 140 },
         { title: 'Quantity', field: 'Quantity', width: 120, hozAlign: 'right' },
         { title: 'Unit Price', field: 'UnitPrice', width: 120, formatter: (cell) => formatterCurrency(cell.getValue()) },
@@ -140,14 +145,49 @@ const initDashboard = () => {
         { title: 'Total VAT Inc', field: 'TotalVATInc', width: 160, formatter: (cell) => formatterCurrency(cell.getValue()) },
     ];
 
-    const columnHeaderMenu = () => columnDefs.map((colDef) => ({
+    let table;
+
+    const getColumnControlMeta = () => {
+        if (table && typeof table.getColumns === 'function') {
+            return table.getColumns()
+                .map((column) => {
+                    const definition = column.getDefinition ? column.getDefinition() || {} : {};
+                    const field = definition.field || (column.getField ? column.getField() : undefined);
+                    if (!field) {
+                        return null;
+                    }
+                    return {
+                        field,
+                        title: definition.title || field,
+                        controlGroup: definition.controlGroup || 'default',
+                    };
+                })
+                .filter(Boolean);
+        }
+        return columnDefs
+            .filter((def) => Boolean(def.field))
+            .map((def) => ({
+                field: def.field,
+                title: def.title || def.field,
+                controlGroup: def.controlGroup || 'default',
+            }));
+    };
+
+    const columnHeaderMenu = () => getColumnControlMeta().map((colDef) => ({
         label: `<span>${colDef.title}</span>`,
-        action: (_e, column) => {
-            column.toggle();
+        action: () => {
+            if (!table) return;
+            const targetColumn = table.getColumn(colDef.field);
+            if (!targetColumn) return;
+            if (typeof targetColumn.isVisible === 'function' && targetColumn.isVisible()) {
+                targetColumn.hide();
+            } else {
+                targetColumn.show();
+            }
         }
     }));
 
-    const table = new Tabulator('#grid-table', {
+    table = new Tabulator('#grid-table', {
         height: '480px',
         layout: 'fitDataStretch',
         columnDefaults: {
@@ -207,31 +247,61 @@ const initDashboard = () => {
 
     const renderColumnControls = () => {
         if (!columnControls) return;
-        columnControls.querySelectorAll('.column-controls__option').forEach((node) => node.remove());
-        columnDefs.forEach((def) => {
-            if (!def.field) return;
-            const option = document.createElement('label');
-            option.className = 'column-controls__option';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.dataset.field = def.field;
-            const column = table.getColumn(def.field);
-            const columnVisible = column && typeof column.isVisible === 'function'
-                ? column.isVisible()
-                : true;
-            checkbox.checked = columnVisible !== false;
-            checkbox.addEventListener('change', () => {
-                if (checkbox.checked) {
-                    table.showColumn(def.field);
-                } else {
-                    table.hideColumn(def.field);
-                }
-                window.requestAnimationFrame(updateSliderVisibility);
+        columnControls.querySelectorAll('.column-controls__option, .column-controls__group-label').forEach((node) => node.remove());
+
+        const groups = [
+            { key: 'entitlement', label: 'Entitlement Columns' },
+            { key: 'meter', label: 'Meter Columns' },
+            { key: 'default', label: 'Other Columns' },
+        ];
+
+        const columnMeta = getColumnControlMeta();
+
+        const groupedDefs = columnMeta.reduce((acc, def) => {
+            const key = def.controlGroup || 'default';
+            if (!acc[key]) {
+                acc[key] = [];
+            }
+            acc[key].push(def);
+            return acc;
+        }, {});
+
+        groups.forEach(({ key, label }) => {
+            const defs = groupedDefs[key];
+            if (!defs || defs.length === 0) {
+                return;
+            }
+
+            const heading = document.createElement('span');
+            heading.className = 'column-controls__group-label';
+            heading.textContent = label;
+            columnControls.appendChild(heading);
+
+            defs.forEach((def) => {
+                if (!def.field) return;
+                const option = document.createElement('label');
+                option.className = 'column-controls__option';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.dataset.field = def.field;
+                const column = table ? table.getColumn(def.field) : null;
+                const columnVisible = column && typeof column.isVisible === 'function'
+                    ? column.isVisible()
+                    : true;
+                checkbox.checked = columnVisible !== false;
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) {
+                        table.showColumn(def.field);
+                    } else {
+                        table.hideColumn(def.field);
+                    }
+                    window.requestAnimationFrame(updateSliderVisibility);
+                });
+                const text = document.createElement('span');
+                text.textContent = def.title;
+                option.append(checkbox, text);
+                columnControls.appendChild(option);
             });
-            const text = document.createElement('span');
-            text.textContent = def.title;
-            option.append(checkbox, text);
-            columnControls.appendChild(option);
         });
     };
 
@@ -286,22 +356,54 @@ const initDashboard = () => {
         const maxOptions = 50;
         const collectors = {};
         dropdowns.forEach((dropdown) => {
-            if (dropdown.dataset.filter === 'CustomerDomainName') {
+            const field = dropdown.dataset.filter;
+            if (!field || field === 'CustomerDomainName' || field === 'InvoiceNumber') {
                 return;
             }
-            collectors[dropdown.dataset.filter] = new Set();
+            if (!collectors[field]) {
+                collectors[field] = {
+                    values: new Map(),
+                    displayField: dropdown.dataset.displayField || '',
+                };
+            }
         });
 
         domainMap.clear();
         allDomains = new Set();
 
         records.forEach((record) => {
-            Object.entries(collectors).forEach(([field, bucket]) => {
-                const value = record[field];
-                if (value && bucket.size < maxOptions) {
-                    bucket.add(value);
+            Object.entries(collectors).forEach(([field, meta]) => {
+                const rawValue = record[field];
+                if (rawValue === null || rawValue === undefined) {
+                    return;
                 }
+                const filterValue = String(rawValue);
+                if (!filterValue.trim()) {
+                    return;
+                }
+                const alreadyPresent = meta.values.has(filterValue);
+                if (!alreadyPresent && meta.values.size >= maxOptions) {
+                    return;
+                }
+                let labelText = meta.values.get(filterValue);
+                if (!alreadyPresent) {
+                    const displayFieldName = meta.displayField;
+                    const displayRaw = displayFieldName ? record[displayFieldName] : undefined;
+                    labelText = filterValue;
+                    if (displayFieldName) {
+                        const displayText = displayRaw ? String(displayRaw).trim() : '';
+                        if (displayText) {
+                            const normalizedValue = filterValue.trim();
+                            labelText = displayText.toLowerCase() === normalizedValue.toLowerCase()
+                                ? displayText
+                                : `${displayText} (${filterValue})`;
+                        }
+                    }
+                    meta.values.set(filterValue, labelText);
+                }
+
             });
+
             const customerName = record.CustomerName;
             const domainValue = record.CustomerDomainName;
             if (domainValue && allDomains.size < maxOptions) {
@@ -319,18 +421,22 @@ const initDashboard = () => {
         });
 
         dropdowns.forEach((dropdown) => {
-            if (dropdown.dataset.filter === 'CustomerDomainName' || dropdown.dataset.filter === 'InvoiceNumber') {
+            const field = dropdown.dataset.filter;
+            if (!field || field === 'CustomerDomainName' || field === 'InvoiceNumber') {
                 return;
             }
-            const field = dropdown.dataset.filter;
-            const set = collectors[field];
+            const meta = collectors[field];
+            if (!meta) {
+                return;
+            }
             const current = dropdown.value;
             const placeholder = dropdown.querySelector('option:first-child')?.textContent || '';
             dropdown.innerHTML = `<option value="">${placeholder}</option>`;
-            Array.from(set).sort().forEach((value) => {
+            const entries = Array.from(meta.values.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+            entries.forEach(([value, label]) => {
                 const option = document.createElement('option');
                 option.value = value;
-                option.textContent = value;
+                option.textContent = label;
                 dropdown.appendChild(option);
             });
             dropdown.value = current;

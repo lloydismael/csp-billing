@@ -138,6 +138,15 @@ body {
     margin-right: 0.25rem;
 }
 
+.column-controls__group-label {
+    display: inline-block;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: rgba(15, 46, 92, 0.75);
+    margin-right: 0.5rem;
+    margin-top: 0.35rem;
+}
+
 .column-controls__option {
     display: inline-flex;
     align-items: center;

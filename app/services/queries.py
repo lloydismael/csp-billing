@@ -1,10 +1,41 @@
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from typing import Any, List, Mapping, Sequence, Tuple
 
 import duckdb
 
 from app.config import settings
+
+
+def _decimal_or_default(value: Any, default: Decimal = Decimal("0")) -> Decimal:
+    if value is None:
+        return default
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return default
+
+
+def _decimal_to_string(value: Decimal, *, minimum_fraction_digits: int = 0) -> str:
+    text = format(value, "f")
+    if "." not in text:
+        if minimum_fraction_digits > 0:
+            return f"{text}.{'0' * minimum_fraction_digits}"
+        return text
+
+    integer, fraction = text.split(".", 1)
+    fraction = fraction.rstrip("0")
+    if fraction:
+        if minimum_fraction_digits > 0 and len(fraction) < minimum_fraction_digits:
+            fraction = fraction.ljust(minimum_fraction_digits, "0")
+        return f"{integer}.{fraction}"
+
+    if minimum_fraction_digits > 0:
+        return f"{integer}.{'0' * minimum_fraction_digits}"
+    return integer
 
 
 def _view_name(upload_id: int) -> str:
@@ -230,9 +261,18 @@ def invoice_details(
 ) -> Mapping[str, Any]:
     table = _view_name(upload_id)
     where_sql, where_params = _build_filters(search, filters)
-    forex_rate = float(forex) if forex and forex > 0 else 1.0
-    margin_rate = float(margin) if margin and margin > 0 else 1.0
-    vat_rate = float(vat) if vat and vat > 0 else settings.default_vat
+    default_vat_decimal = _decimal_or_default(settings.default_vat, Decimal("1"))
+    forex_rate = _decimal_or_default(forex, Decimal("1"))
+    if forex_rate <= Decimal("0"):
+        forex_rate = Decimal("1")
+
+    margin_rate = _decimal_or_default(margin, Decimal("1"))
+    if margin_rate <= Decimal("0"):
+        margin_rate = Decimal("1")
+
+    vat_rate = _decimal_or_default(vat, default_vat_decimal)
+    if vat_rate <= Decimal("0"):
+        vat_rate = default_vat_decimal
 
     details_query = """
         SELECT
@@ -241,28 +281,31 @@ def invoice_details(
             MeterName,
             MeterType,
             Unit,
-            COALESCE(SUM(TRY_CAST(Quantity AS DOUBLE)), 0) AS Quantity,
+            EntitlementDescription,
+            EntitlementId,
+            STRING_AGG(DISTINCT NULLIF(TRIM(Tags), ''), ', ') AS Tags,
+            COALESCE(SUM(TRY_CAST(Quantity AS DECIMAL(38, 12))), 0) AS Quantity,
             CASE
-                WHEN SUM(TRY_CAST(Quantity AS DOUBLE)) = 0 THEN 0
-                ELSE SUM(TRY_CAST(PricingPreTaxTotal AS DOUBLE)) / SUM(TRY_CAST(Quantity AS DOUBLE))
+                WHEN SUM(TRY_CAST(Quantity AS DECIMAL(38, 12))) = 0 THEN 0
+                ELSE SUM(TRY_CAST(PricingPreTaxTotal AS DECIMAL(38, 12))) / SUM(TRY_CAST(Quantity AS DECIMAL(38, 12)))
             END AS UnitPrice,
-            COALESCE(SUM(TRY_CAST(PricingPreTaxTotal AS DOUBLE)), 0) AS PricingPreTaxTotal,
-            COALESCE(SUM(TRY_CAST(BillingPreTaxTotal AS DOUBLE)), 0) AS BillingPreTaxTotal
+            COALESCE(SUM(TRY_CAST(PricingPreTaxTotal AS DECIMAL(38, 12))), 0) AS PricingPreTaxTotal,
+            COALESCE(SUM(TRY_CAST(BillingPreTaxTotal AS DECIMAL(38, 12))), 0) AS BillingPreTaxTotal
         FROM {table}
         {where_sql}
-        GROUP BY MeterCategory, MeterSubCategory, MeterName, MeterType, Unit
-        ORDER BY MeterCategory, MeterSubCategory, MeterName
+        GROUP BY MeterCategory, MeterSubCategory, MeterName, MeterType, Unit, EntitlementDescription, EntitlementId
+        ORDER BY MeterCategory, MeterSubCategory, MeterName, EntitlementDescription
     """.format(table=table, where_sql=where_sql)
 
     totals_query = """
         SELECT
-            COALESCE(SUM(TRY_CAST(Quantity AS DOUBLE)), 0) AS TotalQuantity,
+            COALESCE(SUM(TRY_CAST(Quantity AS DECIMAL(38, 12))), 0) AS TotalQuantity,
             CASE
-                WHEN SUM(TRY_CAST(Quantity AS DOUBLE)) = 0 THEN 0
-                ELSE SUM(TRY_CAST(PricingPreTaxTotal AS DOUBLE)) / SUM(TRY_CAST(Quantity AS DOUBLE))
+                WHEN SUM(TRY_CAST(Quantity AS DECIMAL(38, 12))) = 0 THEN 0
+                ELSE SUM(TRY_CAST(PricingPreTaxTotal AS DECIMAL(38, 12))) / SUM(TRY_CAST(Quantity AS DECIMAL(38, 12)))
             END AS WeightedUnitPrice,
-            COALESCE(SUM(TRY_CAST(PricingPreTaxTotal AS DOUBLE)), 0) AS TotalPreTax,
-            COALESCE(SUM(TRY_CAST(BillingPreTaxTotal AS DOUBLE)), 0) AS TotalBilling
+            COALESCE(SUM(TRY_CAST(PricingPreTaxTotal AS DECIMAL(38, 12))), 0) AS TotalPreTax,
+            COALESCE(SUM(TRY_CAST(BillingPreTaxTotal AS DECIMAL(38, 12))), 0) AS TotalBilling
         FROM {table}
         {where_sql}
     """.format(table=table, where_sql=where_sql)
@@ -280,35 +323,60 @@ def invoice_details(
         totals_row = con.execute(totals_query, where_params).fetchone()
         period_row = con.execute(period_query, where_params).fetchone()
 
-    items = [
-        {
-            "meter_category": row[0],
-            "meter_sub_category": row[1],
-            "meter_name": row[2],
-            "meter_type": row[3],
-            "unit": row[4],
-            "quantity": float(row[5] or 0.0),
-            "unit_price": float(row[6] or 0.0),
-            "pricing_pretax_total": float(row[7] or 0.0),
-            "billing_pretax_total": float(row[8] or 0.0),
-        }
-        for row in rows
-    ]
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        quantity_dec = _decimal_or_default(row[8])
+        unit_price_dec = _decimal_or_default(row[9])
+        pricing_total_dec = _decimal_or_default(row[10])
+        billing_total_dec = _decimal_or_default(row[11])
 
-    total_quantity = float(totals_row[0] or 0.0) if totals_row else 0.0
-    total_unit_price = float(totals_row[1] or 0.0) if totals_row else 0.0
-    total_pricing = float(totals_row[2] or 0.0) if totals_row else 0.0
-    total_billing = float(totals_row[3] or 0.0) if totals_row else 0.0
+        pretax_forex = pricing_total_dec * forex_rate
+        vat_ex = pretax_forex / margin_rate
+        total_vat_inc_dec = vat_ex * vat_rate
 
-    for item in items:
-        pricing_total = item["pricing_pretax_total"]
-        pretax_forex = pricing_total * forex_rate
-        vat_ex = pretax_forex / margin_rate if margin_rate else pretax_forex
-        item["total_vat_inc"] = vat_ex * vat_rate
+        items.append(
+            {
+                "meter_category": row[0],
+                "meter_sub_category": row[1],
+                "meter_name": row[2],
+                "meter_type": row[3],
+                "unit": row[4],
+                "entitlement_description": row[5],
+                "entitlement_id": row[6],
+                "tags": row[7],
+                "quantity": float(quantity_dec),
+                "quantity_raw": _decimal_to_string(quantity_dec),
+                "unit_price": float(unit_price_dec),
+                "unit_price_raw": _decimal_to_string(unit_price_dec, minimum_fraction_digits=2),
+                "pricing_pretax_total": float(pricing_total_dec),
+                "pricing_pretax_total_raw": _decimal_to_string(pricing_total_dec, minimum_fraction_digits=2),
+                "billing_pretax_total": float(billing_total_dec),
+                "billing_pretax_total_raw": _decimal_to_string(billing_total_dec, minimum_fraction_digits=2),
+                "total_vat_inc": float(total_vat_inc_dec),
+                "total_vat_inc_raw": _decimal_to_string(total_vat_inc_dec, minimum_fraction_digits=2),
+            }
+        )
 
-    pretax_forex_total = total_pricing * forex_rate
-    total_vat_ex = pretax_forex_total / margin_rate if margin_rate else pretax_forex_total
-    total_vat_inc = total_vat_ex * vat_rate
+    if totals_row:
+        total_quantity_dec = _decimal_or_default(totals_row[0])
+        total_unit_price_dec = _decimal_or_default(totals_row[1])
+        total_pricing_dec = _decimal_or_default(totals_row[2])
+        total_billing_dec = _decimal_or_default(totals_row[3])
+    else:
+        total_quantity_dec = Decimal("0")
+        total_unit_price_dec = Decimal("0")
+        total_pricing_dec = Decimal("0")
+        total_billing_dec = Decimal("0")
+
+    pretax_forex_total = total_pricing_dec * forex_rate
+    total_vat_ex = pretax_forex_total / margin_rate
+    total_vat_inc_dec = total_vat_ex * vat_rate
+
+    total_quantity = float(total_quantity_dec)
+    total_unit_price = float(total_unit_price_dec)
+    total_pricing = float(total_pricing_dec)
+    total_billing = float(total_billing_dec)
+    total_vat_inc = float(total_vat_inc_dec)
 
     period_start = period_row[0] if period_row else None
     period_end = period_row[1] if period_row else None
@@ -320,6 +388,13 @@ def invoice_details(
         "total_pricing": total_pricing,
         "total_billing": total_billing,
         "total_vat_inc": total_vat_inc,
+        "raw_totals": {
+            "quantity": _decimal_to_string(total_quantity_dec),
+            "unit_price": _decimal_to_string(total_unit_price_dec, minimum_fraction_digits=2),
+            "pricing": _decimal_to_string(total_pricing_dec, minimum_fraction_digits=2),
+            "billing": _decimal_to_string(total_billing_dec, minimum_fraction_digits=2),
+            "total_vat_inc": _decimal_to_string(total_vat_inc_dec, minimum_fraction_digits=2),
+        },
         "period_start": period_start,
         "period_end": period_end,
     }

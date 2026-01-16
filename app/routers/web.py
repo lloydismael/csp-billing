@@ -163,6 +163,7 @@ async def invoice_view(
         "total_unit_price": invoice_data["total_unit_price"],
         "total_pricing": invoice_data["total_pricing"],
         "total_vat_inc": invoice_data["total_vat_inc"],
+        "totals_export": invoice_data.get("raw_totals", {}),
         "forex": forex,
         "margin": margin,
         "vat": vat,

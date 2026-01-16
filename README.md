@@ -61,6 +61,8 @@ docker run -p 8000:8000 -v ${PWD}/data:/app/data csp-billing:latest
 
 Mounting the `data/` directory preserves uploads across restarts.
 
+**Tagging convention:** when creating Docker image tags or release tags, follow the pattern `vX.Y` where `Y` ranges from `0` to `9` only (e.g., `v1.9`, `v2.0`, `v2.9`, `v3.0`). Do not publish tags using double-digit patch numbers such as `v2.10` or `v2.11`.
+
 ## Azure Deployment Guidance
 
 1. **Container Registry**: Push the built image to Azure Container Registry (`az acr build` or `docker push`).

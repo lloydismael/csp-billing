@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from pathlib import Path
 
 import duckdb
 
 from app.config import settings
 from app.models import Upload, UploadStatus
+
+try:  # pragma: no cover - optional acceleration path
+    import polars as pl
+
+    _POLARS_AVAILABLE = True
+except Exception:  # pragma: no cover - handled gracefully
+    pl = None
+    _POLARS_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 CSV_COLUMNS = [
     "PartnerId",
@@ -71,33 +82,69 @@ def _parquet_path(upload_id: int) -> Path:
     return settings.processed_dir / f"upload_{upload_id}.parquet"
 
 
+def _write_parquet_with_polars(csv_path: Path, parquet_path: Path) -> bool:
+    if not _POLARS_AVAILABLE:
+        return False
+
+    try:
+        # Stream the CSV and cast to strings to avoid expensive type inference; DuckDB will cast as needed later.
+        lazy_frame = (
+            pl.scan_csv(
+                str(csv_path),
+                has_header=True,
+                infer_schema_length=settings.polars_infer_rows,
+                ignore_errors=True,
+                low_memory=True,
+            )
+            .with_columns(pl.all().cast(pl.Utf8))
+        )
+
+        lazy_frame.sink_parquet(
+            str(parquet_path),
+            compression="zstd",
+            statistics=True,
+            row_group_size=settings.polars_row_group_size,
+            maintain_order=True,
+            use_pyarrow=False,
+        )
+        return True
+    except Exception as exc:  # pragma: no cover - best effort acceleration
+        logger.warning("Polars ingestion fallback triggered for %s: %s", csv_path, exc)
+        parquet_path.unlink(missing_ok=True)
+        return False
+
+
 def process_upload_csv(upload: Upload) -> dict:
     csv_path = Path(upload.stored_path)
     parquet_path = _parquet_path(upload.id)
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
+    parquet_path.unlink(missing_ok=True)
 
     def _literal(path: Path) -> str:
         # DuckDB COPY/read functions require string literals, so escape any single quotes.
         return path.as_posix().replace("'", "''")
 
-    con = duckdb.connect(str(settings.duckdb_path))
+    con = duckdb.connect(str(settings.duckdb_path), config={"threads": settings.duckdb_threads})
+    con.execute(f"PRAGMA threads={settings.duckdb_threads}")
     con.execute("CREATE SCHEMA IF NOT EXISTS uploads")
 
-    copy_sql = f"""
-        COPY (
-            SELECT *
-            FROM read_csv_auto(
-                '{_literal(csv_path)}',
-                header=True,
-                union_by_name=True,
-                ignore_errors=True,
-                timestampformat='%Y-%m-%d',
-                sample_size=-1
-            )
-        ) TO '{_literal(parquet_path)}' (FORMAT 'parquet', COMPRESSION 'zstd');
-    """
+    if not _write_parquet_with_polars(csv_path, parquet_path):
+        copy_sql = f"""
+            COPY (
+                SELECT *
+                FROM read_csv_auto(
+                    '{_literal(csv_path)}',
+                    header=True,
+                    union_by_name=True,
+                    ignore_errors=True,
+                    timestampformat='%Y-%m-%d',
+                    sample_size=20000,
+                    all_varchar=True
+                )
+            ) TO '{_literal(parquet_path)}' (FORMAT 'parquet', COMPRESSION 'zstd');
+        """
 
-    con.execute(copy_sql)
+        con.execute(copy_sql)
 
     stats_query = f"""
         SELECT

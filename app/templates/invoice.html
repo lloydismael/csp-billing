@@ -6,7 +6,9 @@
         max-width: 960px;
         margin: 0 auto 16px;
         display: flex;
+        flex-wrap: wrap;
         justify-content: flex-end;
+        gap: 12px;
     }
     .invoice-actions button {
         display: inline-flex;
@@ -22,6 +24,7 @@
         cursor: pointer;
         box-shadow: 0 12px 24px rgba(4, 28, 82, 0.25);
         transition: transform 0.12s ease, box-shadow 0.12s ease;
+        white-space: nowrap;
     }
     .invoice-actions button:hover {
         transform: translateY(-1px);
@@ -33,6 +36,10 @@
     .invoice-actions button i {
         font-size: 0.95rem;
     }
+    .invoice-actions button.is-active {
+        background: linear-gradient(135deg, #0b66d6, #0c3f93);
+        box-shadow: 0 16px 32px rgba(5, 55, 132, 0.4);
+    }
     .invoice-wrapper {
         max-width: 960px;
         margin: 0 auto;
@@ -42,6 +49,22 @@
         border-radius: 12px;
         font-family: 'Inter', sans-serif;
         color: #0f2e5c;
+    }
+    .invoice-wrapper:not(.show-tags) .invoice-table .col-tags,
+    .invoice-wrapper:not(.show-tags) .invoice-table .col-tags-header {
+        display: none;
+    }
+    .invoice-wrapper.show-tags .invoice-table .col-tags,
+    .invoice-wrapper.show-tags .invoice-table .col-tags-header {
+        display: table-cell;
+    }
+    .invoice-wrapper:not(.show-entitlement) .invoice-table .col-entitlement,
+    .invoice-wrapper:not(.show-entitlement) .invoice-table .col-entitlement-header {
+        display: none;
+    }
+    .invoice-wrapper.show-entitlement .invoice-table .col-entitlement,
+    .invoice-wrapper.show-entitlement .invoice-table .col-entitlement-header {
+        display: table-cell;
     }
     .invoice-header {
         display: flex;
@@ -86,11 +109,16 @@
         margin: 4px 0;
         font-size: 14px;
     }
+    .invoice-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        margin-bottom: 16px;
+    }
     .invoice-table {
         width: 100%;
+        min-width: 720px;
         border-collapse: collapse;
         font-size: 13px;
-        margin-bottom: 12px;
     }
     .invoice-table thead {
         background: #0f5aad;
@@ -130,6 +158,8 @@
         font-weight: 700;
         font-size: 16px;
         color: #0f5aad;
+        flex-wrap: wrap;
+        gap: 8px;
     }
     .invoice-summary__label {
         margin-right: 12px;
@@ -137,6 +167,39 @@
     .invoice-summary__amount {
         min-width: 160px;
         text-align: right;
+    }
+    @media (max-width: 900px) {
+        .invoice-wrapper {
+            padding: 32px;
+            max-width: calc(100% - 32px);
+        }
+        .invoice-header {
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+        }
+        .invoice-meta {
+            text-align: left;
+        }
+        .invoice-actions {
+            justify-content: center;
+        }
+    }
+    @media (max-width: 600px) {
+        .invoice-wrapper {
+            padding: 24px;
+        }
+        .invoice-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .invoice-actions button {
+            justify-content: center;
+            width: 100%;
+        }
+        .invoice-summary {
+            justify-content: center;
+        }
     }
     @media print {
         body { background: #ffffff !important; }
@@ -159,12 +222,24 @@
 {% block base_scripts %}{% endblock %}
 {% block content %}
 <div class="invoice-actions">
+    <button type="button" id="btn-toggle-tags">
+        <i class="fa-solid fa-tags" aria-hidden="true"></i>
+        <span>Include Tags</span>
+    </button>
+    <button type="button" id="btn-toggle-entitlement">
+        <i class="fa-solid fa-id-badge" aria-hidden="true"></i>
+        <span>Include Entitlements</span>
+    </button>
+    <button type="button" id="btn-export-csv">
+        <i class="fa-solid fa-file-csv" aria-hidden="true"></i>
+        <span>Export as CSV</span>
+    </button>
     <button type="button" id="btn-print-invoice">
         <i class="fa-solid fa-print" aria-hidden="true"></i>
         <span>Print / Save PDF</span>
     </button>
 </div>
-<section class="invoice-wrapper">
+<section class="invoice-wrapper" data-invoice-number="{{ (invoice_number or 'invoice')|e }}">
     <header class="invoice-header">
         <div class="invoice-brand">
             <img src="/static/img/phil-data-logo.png" alt="Phil-Data" style="max-width: 260px; margin-bottom: 12px;">
@@ -187,6 +262,7 @@
         <p><strong>Domain:</strong> {{ domain }}</p>
     </section>
 
+    <div class="invoice-table-wrapper">
     <table class="invoice-table">
         <thead>
             <tr>
@@ -198,6 +274,8 @@
                 <th style="text-align: right;">Quantities</th>
                 <th style="text-align: right;">Unit Prices</th>
                 <th style="text-align: right;">Total</th>
+                <th class="col-tags col-tags-header">Tags</th>
+                <th class="col-entitlement col-entitlement-header">Entitlements</th>
             </tr>
         </thead>
         <tbody>
@@ -216,21 +294,26 @@
                         <td style="text-align: right;">{{ '{:,.2f}'.format(item.quantity) }}</td>
                         <td style="text-align: right;">₱{{ '{:,.2f}'.format(item.unit_price) }}</td>
                         <td style="text-align: right;">₱{{ '{:,.2f}'.format(item.total_vat_inc) }}</td>
+                        <td class="col-tags">{{ item.tags or '-' }}</td>
+                        <td class="col-entitlement">{{ item.entitlement_description or item.entitlement_id or '-' }}</td>
                     </tr>
                     {% endfor %}
                     <tr class="group-subtotal">
                         <td colspan="2"></td>
-                        <td colspan="5" class="subtotal-label">Subtotal for {{ group.meter_sub_category or 'Unspecified' }}</td>
+                        <td colspan="5" class="subtotal-label" data-colspan-base="5">Subtotal for {{ group.meter_sub_category or 'Unspecified' }}</td>
                         <td class="subtotal-amount">₱{{ '{:,.2f}'.format(group.subtotal_vat_inc) }}</td>
+                        <td class="col-tags">&ndash;</td>
+                        <td class="col-entitlement">&ndash;</td>
                     </tr>
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="8" style="text-align: center;">No consumption records were found for the selected filters.</td>
+                    <td colspan="8" data-colspan-base="8" data-add-tags="1" data-add-entitlements="1" style="text-align: center;">No consumption records were found for the selected filters.</td>
                 </tr>
             {% endif %}
         </tbody>
     </table>
+    </div>
 
     <div class="invoice-summary">
         <span class="invoice-summary__label">Total VAT Inclusive:</span>
@@ -243,9 +326,245 @@
 </section>
 {% endblock %}
 {% block extra_js %}
+<script id="invoice-data" type="application/json">{{ items|tojson }}</script>
+<script id="invoice-totals" type="application/json">{{ totals_export|tojson }}</script>
 <script>
+    const invoiceWrapper = document.querySelector(".invoice-wrapper");
+    const toggleTagsButton = document.getElementById("btn-toggle-tags");
+    const toggleEntitlementButton = document.getElementById("btn-toggle-entitlement");
+    const responsiveColspanCells = document.querySelectorAll('[data-colspan-base]');
+    const exportCsvButton = document.getElementById("btn-export-csv");
+    const invoiceNumber = invoiceWrapper?.dataset.invoiceNumber || "invoice";
+    let invoiceItems = [];
+    let invoiceTotals = null;
+
+    try {
+        const invoiceDataScript = document.getElementById("invoice-data");
+        if (invoiceDataScript?.textContent) {
+            invoiceItems = JSON.parse(invoiceDataScript.textContent);
+        }
+    } catch (error) {
+        console.error("Failed to parse invoice data for CSV export", error);
+        invoiceItems = [];
+    }
+
+    try {
+        const totalsDataScript = document.getElementById("invoice-totals");
+        if (totalsDataScript?.textContent) {
+            invoiceTotals = JSON.parse(totalsDataScript.textContent);
+        }
+    } catch (error) {
+        console.error("Failed to parse invoice totals for CSV export", error);
+        invoiceTotals = null;
+    }
+
+    let tagsVisible = false;
+    let entitlementVisible = false;
+
+    const parseIntSafe = (value, defaultValue = 0) => {
+        const parsed = parseInt(value, 10);
+        return Number.isNaN(parsed) ? defaultValue : parsed;
+    };
+
+    const updateResponsiveColspans = () => {
+        responsiveColspanCells.forEach((cell) => {
+            const base = parseIntSafe(cell.dataset.colspanBase || cell.getAttribute("colspan") || "1", 1);
+            const addTags = parseIntSafe(cell.dataset.addTags, 0);
+            const addEntitlements = parseIntSafe(cell.dataset.addEntitlements, 0);
+            let span = base;
+            if (tagsVisible) {
+                span += addTags;
+            }
+            if (entitlementVisible) {
+                span += addEntitlements;
+            }
+            cell.colSpan = span;
+        });
+    };
+
+    toggleTagsButton?.addEventListener("click", () => {
+        tagsVisible = !tagsVisible;
+        invoiceWrapper?.classList.toggle("show-tags", tagsVisible);
+        toggleTagsButton?.classList.toggle("is-active", tagsVisible);
+        const label = toggleTagsButton?.querySelector("span");
+        if (label) {
+            label.textContent = tagsVisible ? "Hide Tags" : "Include Tags";
+        }
+        updateResponsiveColspans();
+    });
+
+    toggleEntitlementButton?.addEventListener("click", () => {
+        entitlementVisible = !entitlementVisible;
+        invoiceWrapper?.classList.toggle("show-entitlement", entitlementVisible);
+        toggleEntitlementButton?.classList.toggle("is-active", entitlementVisible);
+        const label = toggleEntitlementButton?.querySelector("span");
+        if (label) {
+            label.textContent = entitlementVisible ? "Hide Entitlements" : "Include Entitlements";
+        }
+        updateResponsiveColspans();
+    });
+
+    updateResponsiveColspans();
+
     document.getElementById("btn-print-invoice")?.addEventListener("click", () => {
         window.print();
+    });
+
+    const hasUsableExportValue = (value) => {
+        if (value === null || value === undefined) {
+            return false;
+        }
+        if (typeof value === "number") {
+            return Number.isFinite(value);
+        }
+        if (typeof value === "string") {
+            return value.trim().length > 0;
+        }
+        return false;
+    };
+
+    const normalizeExportNumber = (value) => {
+        if (value === null || value === undefined) {
+            return null;
+        }
+        if (typeof value === "number") {
+            return Number.isFinite(value) ? value : null;
+        }
+        if (typeof value === "string") {
+            const trimmed = value.trim();
+            if (!trimmed) {
+                return null;
+            }
+            const numeric = Number.parseFloat(trimmed.replace(/,/g, ""));
+            return Number.isFinite(numeric) ? numeric : null;
+        }
+        return null;
+    };
+
+    const stringifyExportNumber = (value, fallback = "0") => {
+        if (value === null || value === undefined) {
+            return fallback;
+        }
+        if (typeof value === "number") {
+            return Number.isFinite(value) ? value.toString() : fallback;
+        }
+        if (typeof value === "string") {
+            const trimmed = value.trim();
+            return trimmed.length > 0 ? trimmed : fallback;
+        }
+        return fallback;
+    };
+
+    const getItemExportValue = (item, rawKey, numericKey) => {
+        if (!item) {
+            return "0";
+        }
+        const rawCandidate = item[rawKey];
+        if (hasUsableExportValue(rawCandidate)) {
+            return stringifyExportNumber(rawCandidate, "0");
+        }
+        return stringifyExportNumber(item[numericKey], "0");
+    };
+
+    const sumExportValues = (items, rawKey, numericKey) => {
+        return items.reduce((acc, item) => {
+            const rawNumeric = normalizeExportNumber(item?.[rawKey]);
+            if (rawNumeric !== null) {
+                return acc + rawNumeric;
+            }
+            const fallbackNumeric = normalizeExportNumber(item?.[numericKey]);
+            if (fallbackNumeric !== null) {
+                return acc + fallbackNumeric;
+            }
+            return acc;
+        }, 0);
+    };
+
+    const escapeCsvValue = (value) => {
+        if (value === null || value === undefined) {
+            return "";
+        }
+        const str = String(value);
+        const needsEscaping = str.includes("\"") || str.includes(",") || str.includes("\n");
+        if (needsEscaping) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
+
+    const buildInvoiceCsv = () => {
+        if (!Array.isArray(invoiceItems) || invoiceItems.length === 0) {
+            return null;
+        }
+        const headers = [
+            "Meter Category",
+            "Meter Subcategory",
+            "Meter Name",
+            "Meter Type",
+            "Unit",
+            "Quantity",
+            "Unit Price",
+            "Total VAT Inc",
+            "Tags",
+            "Entitlement"
+        ];
+
+        const rows = invoiceItems.map((item) => [
+            item.meter_category ?? "",
+            item.meter_sub_category ?? "",
+            item.meter_name ?? "",
+            item.meter_type ?? "",
+            item.unit ?? "",
+            getItemExportValue(item, "quantity_raw", "quantity"),
+            getItemExportValue(item, "unit_price_raw", "unit_price"),
+            getItemExportValue(item, "total_vat_inc_raw", "total_vat_inc"),
+            item.tags ?? "",
+            item.entitlement_description || item.entitlement_id || ""
+        ]);
+
+        const totalQuantityValue = hasUsableExportValue(invoiceTotals?.quantity)
+            ? stringifyExportNumber(invoiceTotals?.quantity, "0")
+            : stringifyExportNumber(sumExportValues(invoiceItems, "quantity_raw", "quantity"));
+
+        const totalVatIncValue = hasUsableExportValue(invoiceTotals?.total_vat_inc)
+            ? stringifyExportNumber(invoiceTotals?.total_vat_inc, "0")
+            : stringifyExportNumber(sumExportValues(invoiceItems, "total_vat_inc_raw", "total_vat_inc"));
+
+        const totalsRow = [
+            "",
+            "",
+            "",
+            "",
+            "",
+            totalQuantityValue,
+            "",
+            totalVatIncValue,
+            "TOTAL",
+            ""
+        ];
+
+        const csvMatrix = [headers, ...rows, totalsRow];
+        return csvMatrix
+            .map((line) => line.map(escapeCsvValue).join(","))
+            .join("\r\n");
+    };
+
+    exportCsvButton?.addEventListener("click", () => {
+        const csvContent = buildInvoiceCsv();
+        if (!csvContent) {
+            window.alert("No invoice data available to export.");
+            return;
+        }
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const safeInvoiceNumber = invoiceNumber || "invoice";
+        link.href = downloadUrl;
+        link.download = `${safeInvoiceNumber.replace(/[^a-z0-9_-]+/gi, "_")}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
     });
 </script>
 {% endblock %}
