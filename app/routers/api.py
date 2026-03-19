@@ -109,7 +109,7 @@ async def upload_summary(
         upload.id,
         forex=forex,
         margin=margin,
-        vat=vat or settings.default_vat,
+        vat=settings.default_vat if vat is None else vat,
         search=search,
         filters=filters,
     )

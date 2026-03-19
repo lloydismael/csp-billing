@@ -104,7 +104,7 @@ def _write_parquet_with_polars(csv_path: Path, parquet_path: Path) -> bool:
             compression="zstd",
             statistics=True,
             row_group_size=settings.polars_row_group_size,
-            maintain_order=True,
+            maintain_order=False,
             use_pyarrow=False,
         )
         return True
@@ -119,6 +119,7 @@ def process_upload_csv(upload: Upload) -> dict:
     parquet_path = _parquet_path(upload.id)
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
     parquet_path.unlink(missing_ok=True)
+    settings.duckdb_temp_directory.mkdir(parents=True, exist_ok=True)
 
     def _literal(path: Path) -> str:
         # DuckDB COPY/read functions require string literals, so escape any single quotes.
@@ -126,6 +127,8 @@ def process_upload_csv(upload: Upload) -> dict:
 
     con = duckdb.connect(str(settings.duckdb_path), config={"threads": settings.duckdb_threads})
     con.execute(f"PRAGMA threads={settings.duckdb_threads}")
+    con.execute(f"PRAGMA memory_limit='{settings.duckdb_memory_limit}'")
+    con.execute(f"PRAGMA temp_directory='{_literal(settings.duckdb_temp_directory)}'")
     con.execute("CREATE SCHEMA IF NOT EXISTS uploads")
 
     if not _write_parquet_with_polars(csv_path, parquet_path):

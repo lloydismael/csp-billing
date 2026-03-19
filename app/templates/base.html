@@ -17,6 +17,7 @@
             {% if user %}
             <nav class="header-actions">
                 <a href="/dashboard" class="header-btn header-btn--ios">Dashboard</a>
+                <a href="/comparison" class="header-btn header-btn--ios">Comparison</a>
                 {% if user.role == 'admin' %}
                 <a href="/uploads" class="header-btn header-btn--ios">Uploads</a>
                 {% endif %}

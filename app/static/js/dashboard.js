@@ -35,7 +35,7 @@ const initDashboard = () => {
     const defaults = {
         forex: parseFloat(container.dataset.defaultForex || '1') || 1.0,
         margin: parseFloat(container.dataset.defaultMargin || '1') || 1.0,
-        vat: parseFloat(container.dataset.defaultVat || '1.12') || 1.12,
+        vat: (parseFloat(container.dataset.defaultVat || '1.12') || 1.12) <= 0 ? 0 : 1.12,
     };
 
     const forexInput = document.getElementById('input-forex');
@@ -91,7 +91,9 @@ const initDashboard = () => {
 
     forexInput.value = defaults.forex;
     marginInput.value = defaults.margin;
-    vatInput.value = defaults.vat;
+    if (vatInput) {
+        vatInput.value = String(defaults.vat);
+    }
 
     let totalRecords = 0;
     let activeFilters = {};
@@ -607,14 +609,49 @@ const initDashboard = () => {
     };
 
     const refreshAll = async () => {
+        const loadingOverlay = document.getElementById('loading-overlay');
+        
+        // Enforce visibility
+        if (loadingOverlay) {
+            loadingOverlay.style.setProperty('display', 'flex', 'important');
+        }
+        
+        // Disable button and update state with high priority styles
+        btnRefresh.disabled = true;
+        btnRefresh.classList.add('button-disabled');
+        btnRefresh.style.setProperty('opacity', '0.5', 'important');
+        btnRefresh.style.setProperty('cursor', 'not-allowed', 'important');
+        const prevTitle = btnRefresh.title;
+        btnRefresh.title = "Currently loading billing file...";
+        
+        const startTime = Date.now();
+        
         try {
-            await fetchData();
-            await Promise.all([updateSummary(), updateCharts()]);
+            // Ensure at least 500ms loading time to avoid flickering
+            const minLoadTime = new Promise(resolve => setTimeout(resolve, 800));
+            const dataLoad = (async () => {
+                await fetchData();
+                await Promise.all([updateSummary(), updateCharts()]);
+            })();
+            
+            await Promise.all([dataLoad, minLoadTime]);
+            
         } catch (error) {
             console.error(error);
             if (tableInfo) {
                 tableInfo.textContent = 'Failed to load data.';
             }
+        } finally {
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
+            
+            // Re-enable button
+            btnRefresh.disabled = false;
+            btnRefresh.classList.remove('button-disabled');
+            btnRefresh.style.opacity = '';
+            btnRefresh.style.cursor = '';
+            btnRefresh.title = "Load billing data";
         }
     };
 
@@ -640,17 +677,9 @@ const initDashboard = () => {
         });
     }
 
-    btnRefresh.addEventListener('click', () => {
-        fetchData()
-            .then(() => Promise.all([updateSummary(), updateCharts()]))
-            .catch(console.error);
-    });
+    btnRefresh.addEventListener('click', refreshAll);
 
-    const applyFilters = () => {
-        fetchData()
-            .then(() => Promise.all([updateSummary(), updateCharts()]))
-            .catch(console.error);
-    };
+    const applyFilters = refreshAll;
 
     btnApply.addEventListener('click', applyFilters);
     searchInput.addEventListener('change', applyFilters);
@@ -700,7 +729,7 @@ const initDashboard = () => {
     if (currentUploadId) {
         refreshAll();
     } else {
-        showNoUploadState('No completed uploads yet.');
+        showNoUploadState('Please select a billing file to start.');
     }
 };
 

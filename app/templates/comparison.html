@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel comparison-panel">
+    <header style="margin-bottom: 2rem;">
+        <h1>Resource Comparison</h1>
+        <p class="panel-subtitle">Compare consumption between two billing periods</p>
+    </header>
+
+    <form method="get" action="/comparison" class="comparison-form">
+        <div class="form-group-row">
+            <div class="form-group">
+                <label for="current_id">Current Period (Latest)</label>
+                <select name="current_id" id="current_id" required>
+                    <option value="">Select Period</option>
+                    {% for upload in uploads %}
+                    <option value="{{ upload.id }}" {% if current_id == upload.id %}selected{% endif %}>
+                        {{ upload.original_filename }} ({{ upload.created_at.strftime('%Y-%m-%d') }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="previous_id">Previous Period (Baseline)</label>
+                <select name="previous_id" id="previous_id" required>
+                    <option value="">Select Period</option>
+                    {% for upload in uploads %}
+                    <option value="{{ upload.id }}" {% if previous_id == upload.id %}selected{% endif %}>
+                        {{ upload.original_filename }} ({{ upload.created_at.strftime('%Y-%m-%d') }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group-row">
+            <div class="form-group">
+                <label for="search">Customer Filter</label>
+                <input type="text" name="search" id="search" value="{{ search or '' }}" placeholder="Customer Name">
+            </div>
+            <div class="form-group">
+                <label for="entitlement">Entitlement Filter</label>
+                <input type="text" name="entitlement" id="entitlement" value="{{ entitlement or '' }}" placeholder="Description or ID">
+            </div>
+        </div>
+
+        <div class="form-group-row financial-row">
+            <div class="form-group">
+                <label for="forex">Forex Rate</label>
+                <input type="number" step="0.0001" name="forex" id="forex" value="{{ forex }}" required>
+            </div>
+            <div class="form-group">
+                <label for="margin">Margin Rate</label>
+                <input type="number" step="0.0001" name="margin" id="margin" value="{{ margin }}" required>
+            </div>
+            <div class="form-group">
+                <label for="vat">VAT Rate</label>
+                <input type="number" step="0.0001" name="vat" id="vat" value="{{ vat }}" required>
+            </div>
+            <div class="form-group button-group">
+                <button type="submit" class="primary button-compare">Compare Periods</button>
+            </div>
+        </div>
+    </form>
+
+    {% if results is not none %}
+    <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+        <button type="button" class="secondary" onclick="exportTableToCSV('comparison_export.csv')" style="padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer;">
+            <i class="fa-solid fa-download"></i> Export to CSV
+        </button>
+    </div>
+    <div class="comparison-results">
+        <table class="data-table" id="comparisonTable">
+            <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable(0)" style="width: 80px;">Status <i class="fa-solid fa-sort"></i><div class="resizer"></div></th>
+                    <th class="sortable" onclick="sortTable(1)" style="width: 12%;">Category <i class="fa-solid fa-sort"></i><div class="resizer"></div></th>
+                    <th class="sortable" onclick="sortTable(2)" style="width: 15%;">Meter Name <i class="fa-solid fa-sort"></i><div class="resizer"></div></th>
+                    <th class="sortable" onclick="sortTable(3)" style="width: 12%;">Sub-Category <i class="fa-solid fa-sort"></i><div class="resizer"></div></th>
+                    <th class="sortable" onclick="sortTable(4)" style="width: 15%;">Entitlement <i class="fa-solid fa-sort"></i><div class="resizer"></div></th>
+                    <th class="sortable text-right" onclick="sortTable(5)" style="width: 100px;">Qty Diff <i class="fa-solid fa-sort"></i><div class="resizer"></div></th>
+                    <th class="sortable text-right" onclick="sortTable(6)" style="width: 100px;">Cost Diff <i class="fa-solid fa-sort"></i><div class="resizer"></div></th>
+                    <th class="sortable text-right" onclick="sortTable(7)" style="width: 100px;">Current Cost <i class="fa-solid fa-sort"></i><div class="resizer"></div></th>
+                    <th class="sortable text-right" onclick="sortTable(8)" style="width: 100px;">Prev Cost <i class="fa-solid fa-sort"></i><div class="resizer"></div></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if results|length == 0 %}
+                <tr>
+                    <td colspan="9" style="text-align: center; padding: 2rem;">No differences found.</td>
+                </tr>
+                {% else %}
+                {% for row in results %}
+                <tr class="status-{{ row.status|lower }}">
+                    <td data-sort="{{ row.status }}"><span class="badge badge-{{ row.status|lower }}">{{ row.status }}</span></td>
+                    <td>{{ row.meter_category }}</td>
+                    <td>{{ row.meter_name }}</td>
+                    <td>{{ row.meter_sub_category }}</td>
+                    <td>{{ row.entitlement_description or row.entitlement_id or '-' }}</td>
+                    <td class="text-right" data-sort="{{ row.diff_qty }}">{{ '{:,.2f}'.format(row.diff_qty) }}</td>
+                    <td class="text-right" data-sort="{{ row.diff_cost }}">{{ '{:,.2f}'.format(row.diff_cost) }}</td>
+                    <td class="text-right" data-sort="{{ row.current_cost }}">{{ '{:,.2f}'.format(row.current_cost) }}</td>
+                    <td class="text-right" data-sort="{{ row.prev_cost }}">{{ '{:,.2f}'.format(row.prev_cost) }}</td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    {% elif request.query_params.current_id %}
+    <div style="padding: 2rem; text-align: center; color: #666;">
+        No results or error occurred. Check if selected periods are valid.
+    </div>
+    {% endif %}
+</section>
+
+<style>
+    .comparison-panel {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 2rem;
+        margin: 2rem auto;
+        width: 95%;
+        max-width: 100%;
+    }
+    
+    .comparison-results {
+        overflow-x: auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+    }
+    
+    .comparison-form {
+        margin-bottom: 2rem;
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+    
+    .form-group-row {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .financial-row {
+        border-top: 1px solid #e5e7eb;
+        padding-top: 1.5rem;
+        align-items: flex-end;
+    }
+    
+    .button-group {
+        flex: 0 0 auto;
+        min-width: auto;
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .form-group label {
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.9rem;
+    }
+    
+    .form-group select, .form-group input {
+        padding: 0.625rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.95rem;
+    }
+    
+    .button-compare {
+        background: #0f81c7;
+        color: white;
+        border: none;
+        padding: 0.625rem 1.5rem;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 0.95rem;
+    }
+    .button-compare:hover {
+        background: #0d6efd;
+    }
+    
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+        table-layout: fixed;
+        min-width: 1000px;
+    }
+    
+    .data-table th {
+        background-color: #f3f4f6;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 2px solid #e5e7eb;
+        font-weight: 600;
+        color: #374151;
+        position: relative;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .data-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #e5e7eb;
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .text-right {
+        text-align: right !important;
+    }
+    
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .badge-added { background-color: #d1fae5; color: #065f46; } /* Green */
+    .badge-deleted { background-color: #fee2e2; color: #991b1b; } /* Red */
+    .badge-increased { background-color: #ffedd5; color: #9a3412; } /* Orange */
+    .badge-decreased { background-color: #dbeafe; color: #1e40af; } /* Blue */
+    .badge-unchanged { background-color: #f3f4f6; color: #4b5563; } /* Grey */
+    
+    /* Optional: Row highlighting */
+    .status-deleted { background-color: #fff5f5; }
+    .status-added { background-color: #f0fdf4; }
+
+    th.sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    th.sortable:hover {
+        background-color: #f3f4f6;
+    }
+    
+    th.sortable i {
+        margin-left: 0.5rem;
+        color: #9ca3af;
+    }
+
+    .resizer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 5px;
+        cursor: col-resize;
+        user-select: none;
+        height: 100%;
+        touch-action: none;
+    }
+    
+    .resizer:hover, .resizing {
+        background-color: #0d6efd;
+    }
+</style>
+
+<script>
+function sortTable(n) {
+  var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+  table = document.getElementById("comparisonTable");
+  switching = true;
+  // Set the sorting direction to ascending:
+  dir = "asc";
+  /* Make a loop that will continue until
+  no switching has been done: */
+  while (switching) {
+    // Start by saying: no switching is done:
+    switching = false;
+    rows = table.rows;
+    /* Loop through all table rows (except the
+    first, which contains table headers): */
+    for (i = 1; i < (rows.length - 1); i++) {
+      // Start by saying there should be no switching:
+      shouldSwitch = false;
+      /* Get the two elements you want to compare,
+      one from current row and one from the next: */
+      x = rows[i].getElementsByTagName("TD")[n];
+      y = rows[i + 1].getElementsByTagName("TD")[n];
+      
+      // Check if the data-sort attribute exists, otherwise use innerText
+      var xValue = x.getAttribute("data-sort") || x.innerText.trim();
+      var yValue = y.getAttribute("data-sort") || y.innerText.trim();
+      
+      var xNum = parseFloat(xValue);
+      var yNum = parseFloat(yValue);
+      // Check if valid numbers (not NaN) and that the string wasn't just "0abc" parsed as 0
+      // For strictly numeric fields we put data-sort with raw number.
+      // For mixed fields, we likely want string sort.
+      // Simple heuristic: if both parse to number and are not empty string
+      var isNumeric = !isNaN(xNum) && !isNaN(yNum) && xValue !== "" && yValue !== "";
+
+      if (dir == "asc") {
+        if (isNumeric) {
+            if (xNum > yNum) { shouldSwitch = true; break; }
+        } else {
+            if (xValue.toLowerCase() > yValue.toLowerCase()) { shouldSwitch = true; break; }
+        }
+      } else if (dir == "desc") {
+        if (isNumeric) {
+            if (xNum < yNum) { shouldSwitch = true; break; }
+        } else {
+            if (xValue.toLowerCase() < yValue.toLowerCase()) { shouldSwitch = true; break; }
+        }
+      }
+    }
+    if (shouldSwitch) {
+      /* If a switch has been marked, make the switch
+      and mark that a switch has been done: */
+      rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+      switching = true;
+      // Each time a switch is done, increase this count by 1:
+      switchcount ++;
+    } else {
+      /* If no switching has been done AND the direction is "asc",
+      set the direction to "desc" and run the while loop again. */
+      if (switchcount == 0 && dir == "asc") {
+        dir = "desc";
+        switching = true;
+      }
+    }
+  }
+}
+
+function exportTableToCSV(filename) {
+    var csv = [];
+    var rows = document.querySelectorAll("table#comparisonTable tr");
+    
+    for (var i = 0; i < rows.length; i++) {
+        var row = [], cols = rows[i].querySelectorAll("td, th");
+        
+        for (var j = 0; j < cols.length; j++) {
+            // Get clean text
+            var data = cols[j].innerText.trim();
+            // Remove any potential newlines/tabs
+            data = data.replace(/(\r\n|\n|\r)/gm, " ");
+            // Escape double quotes
+            data = data.replace(/"/g, '""');
+            // Wrap in double quotes
+            row.push('"' + data + '"');
+        }
+        
+        csv.push(row.join(","));
+    }
+
+    downloadCSV(csv.join("\n"), filename);
+}
+
+function downloadCSV(csv, filename) {
+    var csvFile;
+    var downloadLink;
+
+    csvFile = new Blob([csv], {type: "text/csv"});
+    downloadLink = document.createElement("a");
+    downloadLink.download = filename;
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.style.display = "none"; // Hide the link
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    createResizers();
+});
+
+function createResizers() {
+    const table = document.getElementById('comparisonTable');
+    if (!table) return;
+
+    const cols = table.querySelectorAll('th');
+    [].forEach.call(cols, function(col) {
+        // Add a resizer element to the column
+        const resizer = col.querySelector('.resizer');
+        if (resizer) {
+            createResizableColumn(col, resizer);
+        }
+    });
+}
+
+function createResizableColumn(col, resizer) {
+    let x = 0;
+    let w = 0;
+
+    const mouseDownHandler = function(e) {
+        x = e.clientX;
+
+        const styles = window.getComputedStyle(col);
+        w = parseInt(styles.width, 10);
+
+        document.addEventListener('mousemove', mouseMoveHandler);
+        document.addEventListener('mouseup', mouseUpHandler);
+        resizer.classList.add('resizing');
+        
+        // Prevent default browser behavior (selection)
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const mouseMoveHandler = function(e) {
+        const dx = e.clientX - x;
+        col.style.width = `${w + dx}px`;
+    };
+
+    const mouseUpHandler = function() {
+        document.removeEventListener('mousemove', mouseMoveHandler);
+        document.removeEventListener('mouseup', mouseUpHandler);
+        resizer.classList.remove('resizing');
+    };
+
+    resizer.addEventListener('mousedown', mouseDownHandler);
+    resizer.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+}
+</script>
+{% endblock %}

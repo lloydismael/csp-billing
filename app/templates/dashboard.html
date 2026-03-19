@@ -29,10 +29,13 @@
                 <label>Margin
                     <input type="number" step="0.01" min="0.01" value="{{ default_margin }}" id="input-margin">
                 </label>
-                <label>VAT
-                    <input type="number" step="0.01" min="0" value="{{ default_vat }}" id="input-vat">
+                <label>Tax
+                    <select id="input-vat" title="Tax mode">
+                        <option value="0">VAT Ex</option>
+                        <option value="1.12" selected>VAT Inc</option>
+                    </select>
                 </label>
-                <button id="btn-refresh" class="button-ios button-ios--accent">Refresh</button>
+                <button id="btn-refresh" class="button-ios button-ios--accent" title="Load billing data">Submit</button>
             </div>
         </header>
         <div class="metric-cards">
@@ -133,5 +136,18 @@
         </table>
     </section>
 </div>
+
+<div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 9999; justify-content: center; align-items: center; flex-direction: column;">
+    <div class="loader" style="border: 5px solid #f3f3f3; border-top: 5px solid #0f81c7; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
+    <div style="margin-top: 20px; font-size: 1.2rem; font-weight: 600; color: #374151;">Loading billing data...</div>
+    <div style="margin-top: 10px; color: #6b7280;">Please do not refresh or leave the page.</div>
+</div>
+
+<style>
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
 {% endblock %}
 {% block extra_js %}{% endblock %}

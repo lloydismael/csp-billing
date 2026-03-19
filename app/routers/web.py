@@ -67,7 +67,8 @@ async def dashboard(
         .where(Upload.status == UploadStatus.completed)
         .order_by(Upload.created_at.desc())
     ).all()
-    latest_upload = completed_uploads[0] if completed_uploads else None
+    # Don't auto-select the latest upload. Let user choose.
+    latest_upload = None
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -93,7 +94,7 @@ async def invoice_view(
     search: str | None = Query(default=None),
     forex: float = Query(default=1.0, gt=0),
     margin: float = Query(default=1.0, gt=0),
-    vat: float = Query(default=settings.default_vat, gt=0),
+    vat: float = Query(default=settings.default_vat, ge=0),
     user: User = Depends(auth.get_current_user),
 ):
     filters = {
@@ -250,3 +251,56 @@ async def remove_upload(
 
     delete_upload(upload, session)
     return RedirectResponse(url="/uploads", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/comparison", response_class=HTMLResponse)
+async def comparison_page(
+    request: Request,
+    current_id: int | None = Query(default=None),
+    previous_id: int | None = Query(default=None),
+    search: str | None = Query(default=None),
+    entitlement: str | None = Query(default=None),
+    forex: float = Query(default=1.0, gt=0),
+    margin: float = Query(default=1.0, gt=0),
+    vat: float = Query(default=settings.default_vat, gt=0),
+    user: User = Depends(auth.get_current_user),
+    session=Depends(get_session),
+):
+    uploads = session.exec(select(Upload).order_by(Upload.created_at.desc())).all()
+
+    results = None
+    if current_id and previous_id:
+        filters = {}
+        
+        try:
+            comparison_data = queries.compare_uploads(
+                current_id, 
+                previous_id, 
+                search=search, 
+                entitlement_search=entitlement,
+                filters=filters,
+                forex=forex,
+                margin=margin,
+                vat=vat
+            )
+            results = comparison_data["results"]
+        except Exception:
+            # Table not found or other error
+            pass
+
+    return templates.TemplateResponse(
+        "comparison.html",
+        {
+            "request": request,
+            "user": user,
+            "uploads": uploads,
+            "current_id": current_id,
+            "previous_id": previous_id,
+            "search": search,
+            "entitlement": entitlement,
+            "forex": forex,
+            "margin": margin,
+            "vat": vat,
+            "results": results,
+        },
+    )
