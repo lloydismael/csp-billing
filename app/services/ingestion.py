@@ -19,6 +19,41 @@ except Exception:  # pragma: no cover - handled gracefully
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_duckdb_memory_limit(value: str) -> str:
+    if not value:
+        return "2048MiB"
+
+    text = str(value).strip()
+    if not text.endswith("%"):
+        return text
+
+    try:
+        pct = float(text[:-1])
+    except ValueError:
+        return "2048MiB"
+
+    pct = max(1.0, min(95.0, pct))
+
+    mem_total_kib = None
+    try:
+        with open("/proc/meminfo", "r", encoding="utf-8") as meminfo:
+            for line in meminfo:
+                if line.startswith("MemTotal:"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        mem_total_kib = int(parts[1])
+                    break
+    except Exception:
+        mem_total_kib = None
+
+    if not mem_total_kib:
+        return "2048MiB"
+
+    mem_total_mib = mem_total_kib / 1024.0
+    target_mib = max(256, int(mem_total_mib * (pct / 100.0)))
+    return f"{target_mib}MiB"
+
 CSV_COLUMNS = [
     "PartnerId",
     "PartnerName",
@@ -127,7 +162,8 @@ def process_upload_csv(upload: Upload) -> dict:
 
     con = duckdb.connect(str(settings.duckdb_path), config={"threads": settings.duckdb_threads})
     con.execute(f"PRAGMA threads={settings.duckdb_threads}")
-    con.execute(f"PRAGMA memory_limit='{settings.duckdb_memory_limit}'")
+    normalized_memory_limit = _normalize_duckdb_memory_limit(settings.duckdb_memory_limit)
+    con.execute(f"PRAGMA memory_limit='{normalized_memory_limit}'")
     con.execute(f"PRAGMA temp_directory='{_literal(settings.duckdb_temp_directory)}'")
     con.execute("CREATE SCHEMA IF NOT EXISTS uploads")
 

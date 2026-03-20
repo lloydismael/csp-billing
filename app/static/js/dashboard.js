@@ -97,6 +97,10 @@ const initDashboard = () => {
     let totalRecords = 0;
     let activeFilters = {};
     let activeSearch = '';
+    let allRecords = [];
+    let loadedUploadId = '';
+    const uploadDataCache = new Map();
+    const MAX_UPLOAD_CACHE_ITEMS = 5;
     const domainMap = new Map();
     let allDomains = new Set();
     const customerSubMap = new Map();
@@ -430,40 +434,65 @@ const initDashboard = () => {
         renderSubOptions();
     };
 
-    const refreshInvoiceDropdown = async (force = false) => {
-        if (!invoiceDropdown || !currentUploadId) return;
-        if (force) {
-            invoiceOptionsLoaded = false;
-        }
-        if (invoiceOptionsLoaded) return;
+    const updateInvoiceDropdownFromRecords = (records) => {
+        if (!invoiceDropdown) return;
+        const placeholder = invoiceDropdown.dataset.placeholder || 'Invoice';
+        const currentValue = invoiceDropdown.value;
+        const invoices = Array.from(
+            new Set(
+                (records || [])
+                    .map((row) => (row && row.InvoiceNumber ? String(row.InvoiceNumber).trim() : ''))
+                    .filter((value) => value)
+            )
+        ).sort((a, b) => a.localeCompare(b));
 
-        try {
-            const response = await fetch(`/api/uploads/${currentUploadId}/invoices?limit=1000`);
-            if (!response.ok) {
-                throw new Error('Failed to load invoices');
-            }
-            const payload = await response.json();
-            const invoices = payload.invoices || [];
-            const currentValue = invoiceDropdown.value;
-            const placeholder = invoiceDropdown.dataset.placeholder || 'Invoice';
-            invoiceDropdown.innerHTML = `<option value="">${placeholder}</option>`;
-            invoices.forEach((invoice) => {
-                const option = document.createElement('option');
-                option.value = invoice;
-                option.textContent = invoice;
-                invoiceDropdown.appendChild(option);
-            });
-            const nextValue = currentValue && invoices.includes(currentValue) ? currentValue : '';
-            invoiceDropdown.value = nextValue;
-            if (nextValue) {
-                activeFilters.invoice = nextValue;
-            } else {
-                delete activeFilters.invoice;
-            }
-            invoiceOptionsLoaded = true;
-        } catch (error) {
-            console.error(error);
+        invoiceDropdown.innerHTML = `<option value="">${placeholder}</option>`;
+        invoices.forEach((invoice) => {
+            const option = document.createElement('option');
+            option.value = invoice;
+            option.textContent = invoice;
+            invoiceDropdown.appendChild(option);
+        });
+
+        if (currentValue && invoices.includes(currentValue)) {
+            invoiceDropdown.value = currentValue;
+        } else {
+            invoiceDropdown.value = '';
         }
+
+        invoiceOptionsLoaded = true;
+    };
+
+    const refreshInvoiceDropdown = async () => {
+        if (!invoiceDropdown) return;
+        updateInvoiceDropdownFromRecords(allRecords);
+    };
+
+    const setUploadCache = (uploadId, records) => {
+        const key = String(uploadId || '');
+        if (!key) return;
+
+        if (uploadDataCache.has(key)) {
+            uploadDataCache.delete(key);
+        }
+        uploadDataCache.set(key, records || []);
+
+        while (uploadDataCache.size > MAX_UPLOAD_CACHE_ITEMS) {
+            const oldestKey = uploadDataCache.keys().next().value;
+            uploadDataCache.delete(oldestKey);
+        }
+    };
+
+    const getUploadCache = (uploadId) => {
+        const key = String(uploadId || '');
+        if (!key || !uploadDataCache.has(key)) {
+            return null;
+        }
+
+        const value = uploadDataCache.get(key);
+        uploadDataCache.delete(key);
+        uploadDataCache.set(key, value);
+        return value;
     };
 
     const readFilters = () => {
@@ -487,148 +516,84 @@ const initDashboard = () => {
         tableInfo.textContent = `${totalRecords.toLocaleString()} records`;
     };
 
-    const fetchData = async () => {
-        if (!ensureUploadSelected()) {
-            return;
-        }
-        if (tableInfo) {
-            tableInfo.textContent = 'Loading...';
-        }
-        const searchTerm = searchInput.value?.trim() || '';
+    const computeDerivedRecord = (record) => {
+        const forex = Number(forexInput.value || defaults.forex || 1) || 1;
+        const margin = Number(marginInput.value || defaults.margin || 1) || 1;
+        const vat = Number(vatInput.value || defaults.vat || 0) || 0;
+        const marginSafe = margin > 0 ? margin : 1;
+
+        const pricingPreTax = Number(record.PricingPreTaxTotal || 0) || 0;
+        const preTaxWithForex = pricingPreTax * forex;
+        const totalVatEx = preTaxWithForex / marginSafe;
+        const vatMultiplier = vat === 0 ? 1 : vat;
+        const totalVatInc = totalVatEx * vatMultiplier;
+
+        return {
+            ...record,
+            Forex: forex,
+            Margin: marginSafe,
+            VAT: vat,
+            PreTaxWithForex: preTaxWithForex,
+            TotalVATEx: totalVatEx,
+            TotalVATInc: totalVatInc,
+        };
+    };
+
+    const filterClientRecords = (records) => {
+        const searchTerm = (searchInput.value || '').trim().toLowerCase();
         const { params: filterParams } = readFilters();
         activeFilters = { ...filterParams };
         activeSearch = searchTerm;
 
-        const cacheKeyParams = {
-            search: searchTerm,
-            vat: vatInput.value,
-            all_records: true,
-            ...filterParams
-        };
-        const cacheKey = currentUploadId + '?' + buildQuery(cacheKeyParams);
+        return (records || []).filter((row) => {
+            if (filterParams.customer && row.CustomerName !== filterParams.customer) return false;
+            if (filterParams.customer_domain && row.CustomerDomainName !== filterParams.customer_domain) return false;
+            if (filterParams.subscription && row.EntitlementDescription !== filterParams.subscription) return false;
+            if (filterParams.invoice && row.InvoiceNumber !== filterParams.invoice) return false;
 
-        if (!window.loadedBillingCache) window.loadedBillingCache = new Map();
-        
-        let rawRecords = [];
-        let total = 0;
-
-        if (window.loadedBillingCache.has(cacheKey)) {
-            const cached = window.loadedBillingCache.get(cacheKey);
-            rawRecords = cached.records;
-            total = cached.total;
-        } else {
-            const fetchQuery = buildQuery({ ...cacheKeyParams, forex: 1.0, margin: 1.0 });
-            const response = await fetch(`/api/uploads/${currentUploadId}/data?${fetchQuery}`);
-            if (!response.ok) {
-                throw new Error('Failed to load data');
+            if (searchTerm) {
+                const haystack = `${row.CustomerName || ''} ${row.CustomerDomainName || ''} ${row.EntitlementDescription || ''} ${row.ProductName || ''} ${row.MeterName || ''}`.toLowerCase();
+                if (!haystack.includes(searchTerm)) return false;
             }
-            const payload = await response.json();
-            rawRecords = payload.records || [];
-            total = payload.total || 0;
-            window.loadedBillingCache.set(cacheKey, { records: rawRecords, total });
-        }
-
-        const currentForex = parseFloat(forexInput.value) || 1.0;
-        const currentMargin = parseFloat(marginInput.value) || 1.0;
-
-        const mappedRecords = rawRecords.map(row => {
-            const cloned = { ...row };
-            const pricing = Number(cloned.PricingPreTaxTotal || 0);
-            const pretaxWithForex = pricing * currentForex;
-            const totalVatEx = pretaxWithForex / currentMargin;
-            const rowVatMultiplier = Number(cloned.VAT || 0);
-
-            cloned.Forex = currentForex;
-            cloned.Margin = currentMargin;
-            cloned.PreTaxWithForex = pretaxWithForex;
-            cloned.TotalVATEx = totalVatEx;
-            cloned.TotalVATInc = totalVatEx * (rowVatMultiplier === 0 ? 1.0 : rowVatMultiplier);
-            return cloned;
+            return true;
         });
-
-        totalRecords = total;
-        table.setData(mappedRecords);
-
-        const shouldUpdateOptions = Object.keys(activeFilters).length === 0 && !activeSearch;
-        if (shouldUpdateOptions) {
-            updateDropdownOptions(mappedRecords);
-        }
-
-        updateTableInfo();
-        await refreshInvoiceDropdown(true);
-        window.requestAnimationFrame(updateSliderVisibility);
     };
 
-    const updateSummary = async () => {
+    const renderSummaryFromRecords = (records) => {
         if (!currentUploadId) {
             setSummaryPlaceholders();
             return;
         }
-        
-        const summaryParams = {
-            vat: vatInput.value,
-            ...activeFilters
-        };
-        if (activeSearch) {
-            summaryParams.search = activeSearch;
-        }
-        const cacheKey = currentUploadId + '?' + buildQuery(summaryParams);
-
-        if (!window.summaryCache) window.summaryCache = new Map();
-
-        let sumData = null;
-        if (window.summaryCache.has(cacheKey)) {
-            sumData = window.summaryCache.get(cacheKey);
-        } else {
-            const fetchQuery = buildQuery({ ...summaryParams, forex: 1.0, margin: 1.0 });
-            const response = await fetch(`/api/uploads/${currentUploadId}/summary?${fetchQuery}`);
-            if (!response.ok) {
-                throw new Error('Failed to load summary');
-            }
-            sumData = await response.json();
-            window.summaryCache.set(cacheKey, sumData);
-        }
-
-        const currentForex = parseFloat(forexInput.value) || 1.0;
-        const currentMargin = parseFloat(marginInput.value) || 1.0;
-
-        const calc_total_pricing = sumData.total_pricing * currentForex;
-        const calc_total_billing = sumData.total_billing; 
-        const calc_total_vat_ex = calc_total_pricing / currentMargin;
-        const calc_total_vat_inc = (sumData.total_vat_inc * currentForex) / currentMargin;
 
         const scopedView = Boolean(activeFilters.customer && activeFilters.customer_domain);
+        const totals = (records || []).reduce((acc, row) => {
+            acc.totalPricing += Number(row.PreTaxWithForex || 0) || 0;
+            acc.totalBilling += Number(row.BillingPreTaxTotal || 0) || 0;
+            acc.totalVatEx += Number(row.TotalVATEx || 0) || 0;
+            acc.totalVatInc += Number(row.TotalVATInc || 0) || 0;
+            return acc;
+        }, { totalPricing: 0, totalBilling: 0, totalVatEx: 0, totalVatInc: 0 });
+
         setSummaryValues(
-            scopedView ? '--' : formatterCurrency(calc_total_pricing),
-            scopedView ? '--' : formatterCurrency(calc_total_billing),
-            scopedView ? '--' : formatterCurrency(calc_total_vat_ex),
-            formatterCurrency(calc_total_vat_inc),
+            scopedView ? '--' : formatterCurrency(totals.totalPricing),
+            scopedView ? '--' : formatterCurrency(totals.totalBilling),
+            scopedView ? '--' : formatterCurrency(totals.totalVatEx),
+            formatterCurrency(totals.totalVatInc),
         );
     };
 
-    const updateCharts = async () => {
-        if (!currentUploadId) {
-            const existingChart = Chart.getChart('chart-customers');
-            if (existingChart) existingChart.destroy();
-            return;
-        }
-        const chartParams = { ...activeFilters };
-        if (activeSearch) {
-            chartParams.search = activeSearch;
-        }
-        const querySuffix = Object.keys(chartParams).length ? `?${buildQuery(chartParams)}` : '';
-        const cacheKey = 'charts::' + currentUploadId + querySuffix;
+    const renderTopCustomersFromRecords = (records) => {
+        const grouped = new Map();
+        (records || []).forEach((row) => {
+            const label = row.CustomerName || 'Unknown';
+            const current = grouped.get(label) || 0;
+            grouped.set(label, current + (Number(row.PricingPreTaxTotal || 0) || 0));
+        });
 
-        if (!window.chartsCache) window.chartsCache = new Map();
-
-        let customers = [];
-        if (window.chartsCache.has(cacheKey)) {
-            customers = window.chartsCache.get(cacheKey);
-        } else {
-            const customersRes = await fetch(`/api/uploads/${currentUploadId}/top-customers${querySuffix}`);
-            customers = customersRes.ok ? await customersRes.json() : [];
-            window.chartsCache.set(cacheKey, customers);
-        }
+        const customers = Array.from(grouped.entries())
+            .map(([label, value]) => ({ label, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 10);
 
         const customerChart = Chart.getChart('chart-customers');
         if (customerChart) customerChart.destroy();
@@ -647,6 +612,48 @@ const initDashboard = () => {
                 plugins: { legend: { position: 'right' } },
             },
         });
+    };
+
+    const applyClientView = () => {
+        const filtered = filterClientRecords(allRecords);
+        const transformed = filtered.map(computeDerivedRecord);
+
+        totalRecords = transformed.length;
+        table.setData(transformed);
+        updateTableInfo();
+        renderSummaryFromRecords(transformed);
+        renderTopCustomersFromRecords(transformed);
+        window.requestAnimationFrame(updateSliderVisibility);
+    };
+
+    const fetchData = async () => {
+        if (!ensureUploadSelected()) {
+            return;
+        }
+        if (tableInfo) {
+            tableInfo.textContent = 'Loading...';
+        }
+
+        const queryParams = {
+            page: 1,
+            all_records: true,
+            include_computed: false,
+        };
+
+        const query = buildQuery(queryParams);
+        const response = await fetch(`/api/uploads/${currentUploadId}/data?${query}`);
+        if (!response.ok) {
+            throw new Error('Failed to load data');
+        }
+        const payload = await response.json();
+        allRecords = payload.records || [];
+        totalRecords = allRecords.length;
+        loadedUploadId = currentUploadId;
+        setUploadCache(currentUploadId, allRecords);
+
+        updateDropdownOptions(allRecords);
+        updateInvoiceDropdownFromRecords(allRecords);
+        applyClientView();
     };
 
     const refreshAll = async () => {
@@ -677,8 +684,16 @@ const initDashboard = () => {
             // Ensure at least 500ms loading time to avoid flickering
             const minLoadTime = new Promise(resolve => setTimeout(resolve, 800));
             const dataLoad = (async () => {
-                await fetchData();
-                await Promise.all([updateSummary(), updateCharts()]);
+                const cachedRecords = getUploadCache(currentUploadId);
+                if (cachedRecords && cachedRecords.length > 0) {
+                    allRecords = cachedRecords;
+                    loadedUploadId = currentUploadId;
+                    applyClientView();
+                } else if (loadedUploadId === currentUploadId && allRecords.length > 0) {
+                    applyClientView();
+                } else {
+                    await fetchData();
+                }
             })();
             
             await Promise.all([dataLoad, minLoadTime]);
@@ -735,7 +750,19 @@ const initDashboard = () => {
 
     btnRefresh.addEventListener('click', refreshAll);
 
-    const applyFilters = refreshAll;
+    const applyFilters = () => {
+        if (!currentUploadId) {
+            showNoUploadState('Select a billing file to view data.');
+            return;
+        }
+
+        if (loadedUploadId !== currentUploadId || allRecords.length === 0) {
+            refreshAll();
+            return;
+        }
+
+        applyClientView();
+    };
 
     btnApply.addEventListener('click', applyFilters);
     searchInput.addEventListener('change', applyFilters);

@@ -1,4 +1,7 @@
 {% extends "base.html" %}
+{% block base_scripts %}
+<script src="/static/js/uploads.js" defer></script>
+{% endblock %}
 {% block content %}
 <section class="panel uploads-admin">
     <header>
@@ -8,13 +11,26 @@
         </div>
         <div class="hint">Maximum size: {{ max_size }} MB</div>
     </header>
-    <form class="upload-form" method="post" action="/uploads" enctype="multipart/form-data">
+    <form id="upload-form" class="upload-form" method="post" action="/uploads" enctype="multipart/form-data">
         <label class="file-input">
             <span>Select CSV file</span>
-            <input type="file" name="file" accept=".csv" required>
+            <input id="file-input" type="file" name="file" accept=".csv" required>
         </label>
-        <button type="submit" class="primary">Upload</button>
+        <input id="client-meta" type="hidden" name="client_meta" value="">
+        <button id="btn-upload" type="submit" class="primary">Upload</button>
     </form>
+
+    <div id="upload-preprocess" style="display:none; margin-top:1rem; padding:1rem; border:1px solid #e5e7eb; border-radius:8px; background:#f8fafc;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+            <strong id="preprocess-status">Preparing file...</strong>
+            <span id="preprocess-percent">0%</span>
+        </div>
+        <div style="margin-top:0.5rem; background:#e5e7eb; border-radius:999px; height:10px; overflow:hidden;">
+            <div id="preprocess-bar" style="height:10px; width:0%; background:#0f81c7;"></div>
+        </div>
+        <div id="preprocess-summary" style="margin-top:0.75rem; color:#334155; font-size:0.9rem;"></div>
+    </div>
+
     <table class="uploads-table">
         <thead>
             <tr>

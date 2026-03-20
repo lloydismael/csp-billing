@@ -86,6 +86,7 @@ def fetch_data_page(
     search: str | None = None,
     filters: Mapping[str, Any] | None = None,
     columns: Sequence[str] | None = None,
+    include_computed: bool = True,
 ) -> dict:
     vat = settings.default_vat if vat is None else vat
     vat = max(float(vat), 0.0)
@@ -114,16 +115,17 @@ def fetch_data_page(
     vat_multiplier_expr = f"CASE WHEN {exempt_sql} THEN 1.0 ELSE ? END"
 
     select_parts = list(base_columns)
-    select_parts.extend(
-        [
-            "? AS Forex",
-            "CAST(PricingPreTaxTotal AS DOUBLE) * ? AS PreTaxWithForex",
-            "? AS Margin",
-            "(CAST(PricingPreTaxTotal AS DOUBLE) * ?) / ? AS TotalVATEx",
-            f"{vat_display_expr} AS VAT",
-            f"((CAST(PricingPreTaxTotal AS DOUBLE) * ?) / ?) * ({vat_multiplier_expr}) AS TotalVATInc",
-        ]
-    )
+    if include_computed:
+        select_parts.extend(
+            [
+                "? AS Forex",
+                "CAST(PricingPreTaxTotal AS DOUBLE) * ? AS PreTaxWithForex",
+                "? AS Margin",
+                "(CAST(PricingPreTaxTotal AS DOUBLE) * ?) / ? AS TotalVATEx",
+                f"{vat_display_expr} AS VAT",
+                f"((CAST(PricingPreTaxTotal AS DOUBLE) * ?) / ?) * ({vat_multiplier_expr}) AS TotalVATInc",
+            ]
+        )
 
     select_sql = ",\n            ".join(select_parts)
 
@@ -131,23 +133,25 @@ def fetch_data_page(
         f"SELECT\n            {select_sql}\n        FROM {table}",
     ]
 
-    params: List[Any] = [
-        forex,
-        forex,
-        margin_safe,
-        forex,
-        margin_safe,
-    ]
-    
-    # Params for VAT column
-    params.extend(exempt_params)
-    params.append(vat)
-    
-    # Params for TotalVATInc column
-    params.append(forex)
-    params.append(margin_safe)
-    params.extend(exempt_params)
-    params.append(vat_multiplier)
+    params: List[Any] = []
+    if include_computed:
+        params.extend(
+            [
+                forex,
+                forex,
+                margin_safe,
+                forex,
+                margin_safe,
+            ]
+        )
+
+        params.extend(exempt_params)
+        params.append(vat)
+
+        params.append(forex)
+        params.append(margin_safe)
+        params.extend(exempt_params)
+        params.append(vat_multiplier)
 
     where_sql, where_params = _build_filters(search, filters)
     if where_sql:

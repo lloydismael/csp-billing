@@ -44,6 +44,7 @@ async def get_upload_data(
     subscription: Optional[str] = Query(None),
     columns: Optional[str] = Query(None),
     all_records: bool = Query(False, alias="all_records"),
+    include_computed: bool = Query(True),
 ):
     upload = _get_upload(upload_id, session, user)
     filters = {}
@@ -76,6 +77,7 @@ async def get_upload_data(
         search=search,
         filters=filters,
         columns=column_list,
+        include_computed=include_computed,
     )
     return DataPage(**page_data)
 
