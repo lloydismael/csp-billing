@@ -41,6 +41,7 @@ async def get_upload_data(
     invoice: Optional[str] = Query(None),
     product: Optional[str] = Query(None),
     charge_type: Optional[str] = Query(None),
+    subscription: Optional[str] = Query(None),
     columns: Optional[str] = Query(None),
     all_records: bool = Query(False, alias="all_records"),
 ):
@@ -56,6 +57,8 @@ async def get_upload_data(
         filters["ProductName"] = product
     if charge_type:
         filters["ChargeType"] = charge_type
+    if subscription:
+        filters["EntitlementDescription"] = subscription
 
     column_list = columns.split(",") if columns else None
     limit_value = 100 if limit is None else limit
@@ -90,6 +93,7 @@ async def upload_summary(
     invoice: Optional[str] = Query(None),
     product: Optional[str] = Query(None),
     charge_type: Optional[str] = Query(None),
+    subscription: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
 ):
     upload = _get_upload(upload_id, session, user)
@@ -104,6 +108,8 @@ async def upload_summary(
         filters["ProductName"] = product
     if charge_type:
         filters["ChargeType"] = charge_type
+    if subscription:
+        filters["EntitlementDescription"] = subscription
 
     summary = queries.summarize_upload(
         upload.id,
@@ -127,6 +133,7 @@ async def chart_top_customers(
     invoice: Optional[str] = Query(None),
     product: Optional[str] = Query(None),
     charge_type: Optional[str] = Query(None),
+    subscription: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
 ):
     upload = _get_upload(upload_id, session, user)
@@ -141,6 +148,8 @@ async def chart_top_customers(
         filters["ProductName"] = product
     if charge_type:
         filters["ChargeType"] = charge_type
+    if subscription:
+        filters["EntitlementDescription"] = subscription
 
     return queries.top_customers(upload.id, limit=limit, search=search, filters=filters)
 
@@ -155,6 +164,7 @@ async def list_upload_invoices(
     customer_domain: Optional[str] = Query(None),
     product: Optional[str] = Query(None),
     charge_type: Optional[str] = Query(None),
+    subscription: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
 ):
     upload = _get_upload(upload_id, session, user)
@@ -167,6 +177,8 @@ async def list_upload_invoices(
         filters["ProductName"] = product
     if charge_type:
         filters["ChargeType"] = charge_type
+    if subscription:
+        filters["EntitlementDescription"] = subscription
 
     invoices = queries.list_invoices(upload.id, limit=limit, search=search, filters=filters)
     return {"invoices": invoices}
