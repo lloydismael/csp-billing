@@ -59,7 +59,6 @@ const initDashboard = () => {
     if (invoiceDropdown) {
         invoiceDropdown.dataset.placeholder = invoicePlaceholder;
     }
-    const columnControls = document.getElementById('column-controls');
     const tableScrollContainer = document.querySelector('.table-scroll');
     const scrollSlider = document.getElementById('table-scroll-slider');
     const scrollSliderWrapper = document.getElementById('table-scroll-slider-wrapper');
@@ -100,16 +99,27 @@ const initDashboard = () => {
     let activeSearch = '';
     const domainMap = new Map();
     let allDomains = new Set();
+    const customerSubMap = new Map();
+    const domainSubMap = new Map();
+    let allSubs = new Set();
     let invoiceOptionsLoaded = false;
+    
+    // new select node
+    const subDropdown = document.getElementById('filter-subscription');
+    const subPlaceholder = subDropdown?.querySelector('option:first-child')?.textContent || 'Subscription';
+    if (subDropdown && !subDropdown.dataset.placeholder) {
+        subDropdown.dataset.placeholder = subPlaceholder;
+    }
 
     const resetFiltersForUploadChange = () => {
         activeFilters = {};
         activeSearch = '';
-        if (searchInput) {
-            searchInput.value = '';
-        }
+        if (searchInput) searchInput.value = '';
         domainMap.clear();
         allDomains = new Set();
+        customerSubMap.clear();
+        domainSubMap.clear();
+        allSubs = new Set();
         dropdowns.forEach((dropdown) => {
             if (!dropdown) return;
             const placeholderText = dropdown.dataset.placeholder || '';
@@ -236,76 +246,7 @@ const initDashboard = () => {
         return true;
     };
 
-    const syncColumnCheckbox = (column, isVisible) => {
-        if (!columnControls || !column) return;
-        const field = column.getField ? column.getField() : column.field;
-        if (!field) return;
-        const checkbox = columnControls.querySelector(`input[data-field="${field}"]`);
-        if (checkbox) {
-            checkbox.checked = isVisible;
-        }
-        window.requestAnimationFrame(updateSliderVisibility);
-    };
 
-    const renderColumnControls = () => {
-        if (!columnControls) return;
-        columnControls.querySelectorAll('.column-controls__option, .column-controls__group-label').forEach((node) => node.remove());
-
-        const groups = [
-            { key: 'entitlement', label: 'Entitlement Columns' },
-            { key: 'meter', label: 'Meter Columns' },
-            { key: 'default', label: 'Other Columns' },
-        ];
-
-        const columnMeta = getColumnControlMeta();
-
-        const groupedDefs = columnMeta.reduce((acc, def) => {
-            const key = def.controlGroup || 'default';
-            if (!acc[key]) {
-                acc[key] = [];
-            }
-            acc[key].push(def);
-            return acc;
-        }, {});
-
-        groups.forEach(({ key, label }) => {
-            const defs = groupedDefs[key];
-            if (!defs || defs.length === 0) {
-                return;
-            }
-
-            const heading = document.createElement('span');
-            heading.className = 'column-controls__group-label';
-            heading.textContent = label;
-            columnControls.appendChild(heading);
-
-            defs.forEach((def) => {
-                if (!def.field) return;
-                const option = document.createElement('label');
-                option.className = 'column-controls__option';
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.dataset.field = def.field;
-                const column = table ? table.getColumn(def.field) : null;
-                const columnVisible = column && typeof column.isVisible === 'function'
-                    ? column.isVisible()
-                    : true;
-                checkbox.checked = columnVisible !== false;
-                checkbox.addEventListener('change', () => {
-                    if (checkbox.checked) {
-                        table.showColumn(def.field);
-                    } else {
-                        table.hideColumn(def.field);
-                    }
-                    window.requestAnimationFrame(updateSliderVisibility);
-                });
-                const text = document.createElement('span');
-                text.textContent = def.title;
-                option.append(checkbox, text);
-                columnControls.appendChild(option);
-            });
-        });
-    };
 
     const bindScrollSlider = () => {
         if (!tableScrollContainer || !scrollSlider) return;
@@ -319,7 +260,6 @@ const initDashboard = () => {
     };
 
     table.on('tableBuilt', () => {
-        renderColumnControls();
         window.requestAnimationFrame(updateSliderVisibility);
     });
     bindScrollSlider();
@@ -327,8 +267,6 @@ const initDashboard = () => {
 
     window.addEventListener('resize', () => window.requestAnimationFrame(updateSliderVisibility));
 
-    table.on('columnHidden', (column) => syncColumnCheckbox(column, false));
-    table.on('columnShown', (column) => syncColumnCheckbox(column, true));
     table.on('renderComplete', () => window.requestAnimationFrame(updateSliderVisibility));
     table.on('dataLoaded', () => window.requestAnimationFrame(updateSliderVisibility));
 
@@ -354,12 +292,41 @@ const initDashboard = () => {
         }
     };
 
+    const renderSubOptions = () => {
+        if (!subDropdown) return;
+        const selectedCustomer = customerDropdown?.value || '';
+        const selectedDomain = domainDropdown?.value || '';
+        const currentSub = subDropdown.value;
+        
+        let values;
+        if (selectedDomain) {
+            values = Array.from(domainSubMap.get(selectedDomain) || []);
+        } else if (selectedCustomer) {
+            values = Array.from(customerSubMap.get(selectedCustomer) || []);
+        } else {
+            values = Array.from(allSubs);
+        }
+        const sortedValues = values.sort((a, b) => a.localeCompare(b));
+        subDropdown.innerHTML = `<option value="">${subPlaceholder}</option>`;
+        sortedValues.forEach((value) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            subDropdown.appendChild(option);
+        });
+        if (sortedValues.includes(currentSub)) {
+            subDropdown.value = currentSub;
+        } else {
+            subDropdown.value = '';
+        }
+    };
+
     const updateDropdownOptions = (records) => {
         const maxOptions = 50;
         const collectors = {};
         dropdowns.forEach((dropdown) => {
             const field = dropdown.dataset.filter;
-            if (!field || field === 'CustomerDomainName' || field === 'InvoiceNumber') {
+            if (!field || field === 'CustomerDomainName' || field === 'EntitlementDescription' || field === 'InvoiceNumber') {
                 return;
             }
             if (!collectors[field]) {
@@ -372,6 +339,9 @@ const initDashboard = () => {
 
         domainMap.clear();
         allDomains = new Set();
+        customerSubMap.clear();
+        domainSubMap.clear();
+        allSubs = new Set();
 
         records.forEach((record) => {
             Object.entries(collectors).forEach(([field, meta]) => {
@@ -408,23 +378,35 @@ const initDashboard = () => {
 
             const customerName = record.CustomerName;
             const domainValue = record.CustomerDomainName;
+            const subValue = record.EntitlementDescription;
             if (domainValue && allDomains.size < maxOptions) {
                 allDomains.add(domainValue);
             }
-            if (customerName && domainValue) {
-                if (!domainMap.has(customerName)) {
-                    domainMap.set(customerName, new Set());
+            if (subValue && allSubs.size < maxOptions) {
+                allSubs.add(subValue);
+            }
+            if (customerName) {
+                if (domainValue) {
+                    if (!domainMap.has(customerName)) domainMap.set(customerName, new Set());
+                    const domainSet = domainMap.get(customerName);
+                    if (domainSet.size < maxOptions) domainSet.add(domainValue);
                 }
-                const domainSet = domainMap.get(customerName);
-                if (domainSet.size < maxOptions) {
-                    domainSet.add(domainValue);
+                if (subValue) {
+                    if (!customerSubMap.has(customerName)) customerSubMap.set(customerName, new Set());
+                    const cs = customerSubMap.get(customerName);
+                    if (cs.size < maxOptions) cs.add(subValue);
                 }
+            }
+            if (domainValue && subValue) {
+                if (!domainSubMap.has(domainValue)) domainSubMap.set(domainValue, new Set());
+                const ds = domainSubMap.get(domainValue);
+                if (ds.size < maxOptions) ds.add(subValue);
             }
         });
 
         dropdowns.forEach((dropdown) => {
             const field = dropdown.dataset.filter;
-            if (!field || field === 'CustomerDomainName' || field === 'InvoiceNumber') {
+            if (!field || field === 'CustomerDomainName' || field === 'EntitlementDescription' || field === 'InvoiceNumber') {
                 return;
             }
             const meta = collectors[field];
@@ -445,6 +427,7 @@ const initDashboard = () => {
         });
 
         renderDomainOptions();
+        renderSubOptions();
     };
 
     const refreshInvoiceDropdown = async (force = false) => {
@@ -516,29 +499,61 @@ const initDashboard = () => {
         activeFilters = { ...filterParams };
         activeSearch = searchTerm;
 
-        const queryParams = {
-            page: 1,
+        const cacheKeyParams = {
             search: searchTerm,
-            forex: forexInput.value,
-            margin: marginInput.value,
             vat: vatInput.value,
             all_records: true,
+            ...filterParams
         };
-        Object.entries(filterParams).forEach(([key, value]) => {
-            queryParams[key] = value;
-        });
-        const query = buildQuery(queryParams);
-        const response = await fetch(`/api/uploads/${currentUploadId}/data?${query}`);
-        if (!response.ok) {
-            throw new Error('Failed to load data');
+        const cacheKey = currentUploadId + '?' + buildQuery(cacheKeyParams);
+
+        if (!window.loadedBillingCache) window.loadedBillingCache = new Map();
+        
+        let rawRecords = [];
+        let total = 0;
+
+        if (window.loadedBillingCache.has(cacheKey)) {
+            const cached = window.loadedBillingCache.get(cacheKey);
+            rawRecords = cached.records;
+            total = cached.total;
+        } else {
+            const fetchQuery = buildQuery({ ...cacheKeyParams, forex: 1.0, margin: 1.0 });
+            const response = await fetch(`/api/uploads/${currentUploadId}/data?${fetchQuery}`);
+            if (!response.ok) {
+                throw new Error('Failed to load data');
+            }
+            const payload = await response.json();
+            rawRecords = payload.records || [];
+            total = payload.total || 0;
+            window.loadedBillingCache.set(cacheKey, { records: rawRecords, total });
         }
-        const payload = await response.json();
-        totalRecords = payload.total;
-        table.setData(payload.records);
+
+        const currentForex = parseFloat(forexInput.value) || 1.0;
+        const currentMargin = parseFloat(marginInput.value) || 1.0;
+
+        const mappedRecords = rawRecords.map(row => {
+            const cloned = { ...row };
+            const pricing = Number(cloned.PricingPreTaxTotal || 0);
+            const pretaxWithForex = pricing * currentForex;
+            const totalVatEx = pretaxWithForex / currentMargin;
+            const rowVatMultiplier = Number(cloned.VAT || 0);
+
+            cloned.Forex = currentForex;
+            cloned.Margin = currentMargin;
+            cloned.PreTaxWithForex = pretaxWithForex;
+            cloned.TotalVATEx = totalVatEx;
+            cloned.TotalVATInc = totalVatEx * (rowVatMultiplier === 0 ? 1.0 : rowVatMultiplier);
+            return cloned;
+        });
+
+        totalRecords = total;
+        table.setData(mappedRecords);
+
         const shouldUpdateOptions = Object.keys(activeFilters).length === 0 && !activeSearch;
         if (shouldUpdateOptions) {
-            updateDropdownOptions(payload.records);
+            updateDropdownOptions(mappedRecords);
         }
+
         updateTableInfo();
         await refreshInvoiceDropdown(true);
         window.requestAnimationFrame(updateSliderVisibility);
@@ -549,29 +564,45 @@ const initDashboard = () => {
             setSummaryPlaceholders();
             return;
         }
+        
         const summaryParams = {
-            forex: forexInput.value,
-            margin: marginInput.value,
             vat: vatInput.value,
+            ...activeFilters
         };
-        Object.entries(activeFilters).forEach(([key, value]) => {
-            summaryParams[key] = value;
-        });
         if (activeSearch) {
             summaryParams.search = activeSearch;
         }
-        const params = buildQuery(summaryParams);
-        const response = await fetch(`/api/uploads/${currentUploadId}/summary?${params}`);
-        if (!response.ok) {
-            throw new Error('Failed to load summary');
+        const cacheKey = currentUploadId + '?' + buildQuery(summaryParams);
+
+        if (!window.summaryCache) window.summaryCache = new Map();
+
+        let sumData = null;
+        if (window.summaryCache.has(cacheKey)) {
+            sumData = window.summaryCache.get(cacheKey);
+        } else {
+            const fetchQuery = buildQuery({ ...summaryParams, forex: 1.0, margin: 1.0 });
+            const response = await fetch(`/api/uploads/${currentUploadId}/summary?${fetchQuery}`);
+            if (!response.ok) {
+                throw new Error('Failed to load summary');
+            }
+            sumData = await response.json();
+            window.summaryCache.set(cacheKey, sumData);
         }
-        const summary = await response.json();
+
+        const currentForex = parseFloat(forexInput.value) || 1.0;
+        const currentMargin = parseFloat(marginInput.value) || 1.0;
+
+        const calc_total_pricing = sumData.total_pricing * currentForex;
+        const calc_total_billing = sumData.total_billing; 
+        const calc_total_vat_ex = calc_total_pricing / currentMargin;
+        const calc_total_vat_inc = (sumData.total_vat_inc * currentForex) / currentMargin;
+
         const scopedView = Boolean(activeFilters.customer && activeFilters.customer_domain);
         setSummaryValues(
-            scopedView ? '--' : formatterCurrency(summary.total_pricing),
-            scopedView ? '--' : formatterCurrency(summary.total_billing),
-            scopedView ? '--' : formatterCurrency(summary.total_vat_ex),
-            formatterCurrency(summary.total_vat_inc),
+            scopedView ? '--' : formatterCurrency(calc_total_pricing),
+            scopedView ? '--' : formatterCurrency(calc_total_billing),
+            scopedView ? '--' : formatterCurrency(calc_total_vat_ex),
+            formatterCurrency(calc_total_vat_inc),
         );
     };
 
@@ -586,8 +617,18 @@ const initDashboard = () => {
             chartParams.search = activeSearch;
         }
         const querySuffix = Object.keys(chartParams).length ? `?${buildQuery(chartParams)}` : '';
-        const customersRes = await fetch(`/api/uploads/${currentUploadId}/top-customers${querySuffix}`);
-        const customers = customersRes.ok ? await customersRes.json() : [];
+        const cacheKey = 'charts::' + currentUploadId + querySuffix;
+
+        if (!window.chartsCache) window.chartsCache = new Map();
+
+        let customers = [];
+        if (window.chartsCache.has(cacheKey)) {
+            customers = window.chartsCache.get(cacheKey);
+        } else {
+            const customersRes = await fetch(`/api/uploads/${currentUploadId}/top-customers${querySuffix}`);
+            customers = customersRes.ok ? await customersRes.json() : [];
+            window.chartsCache.set(cacheKey, customers);
+        }
 
         const customerChart = Chart.getChart('chart-customers');
         if (customerChart) customerChart.destroy();
@@ -610,10 +651,18 @@ const initDashboard = () => {
 
     const refreshAll = async () => {
         const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingProgress = document.getElementById('loading-progress');
         
         // Enforce visibility
         if (loadingOverlay) {
             loadingOverlay.style.setProperty('display', 'flex', 'important');
+            if (loadingProgress) {
+                loadingProgress.style.transition = 'none';
+                loadingProgress.style.width = '0%';
+                void loadingProgress.offsetWidth; // Force paint
+                loadingProgress.style.transition = 'width 10s cubic-bezier(0.1, 0.7, 0.1, 1)';
+                loadingProgress.style.width = '75%';
+            }
         }
         
         // Disable button and update state with high priority styles
@@ -623,8 +672,6 @@ const initDashboard = () => {
         btnRefresh.style.setProperty('cursor', 'not-allowed', 'important');
         const prevTitle = btnRefresh.title;
         btnRefresh.title = "Currently loading billing file...";
-        
-        const startTime = Date.now();
         
         try {
             // Ensure at least 500ms loading time to avoid flickering
@@ -636,6 +683,11 @@ const initDashboard = () => {
             
             await Promise.all([dataLoad, minLoadTime]);
             
+            if (loadingProgress) {
+                loadingProgress.style.transition = 'width 0.3s ease';
+                loadingProgress.style.width = '100%';
+                await new Promise(resolve => setTimeout(resolve, 350));
+            }
         } catch (error) {
             console.error(error);
             if (tableInfo) {
@@ -644,6 +696,10 @@ const initDashboard = () => {
         } finally {
             if (loadingOverlay) {
                 loadingOverlay.style.display = 'none';
+            }
+            if (loadingProgress) {
+                loadingProgress.style.width = '0%';
+                loadingProgress.style.transition = 'none';
             }
             
             // Re-enable button
@@ -686,6 +742,12 @@ const initDashboard = () => {
     if (customerDropdown) {
         customerDropdown.addEventListener('change', () => {
             renderDomainOptions();
+            renderSubOptions();
+        });
+    }
+    if (domainDropdown) {
+        domainDropdown.addEventListener('change', () => {
+            renderSubOptions();
         });
     }
     if (btnInvoice) {
