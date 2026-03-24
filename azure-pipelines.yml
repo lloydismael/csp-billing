@@ -1,19 +1,21 @@
 trigger:
-- main  # 1. Changed from 'master' if your GitHub default branch is 'main'
+- main  # Change to 'master' if your branch name is master
 
 variables:
-  # 2. Update this to the NAME of the Docker Hub Service Connection you created
+  # 1. Matches your 'Service Connection csp-billing' (Image 4)
   dockerRegistryServiceConnection: 'Service Connection csp-billing' 
   
-  # 3. For Docker Hub, this MUST be 'your-username/your-repo-name'
+  # 2. Your Docker Hub username / repository name
   imageRepository: 'lloydismael/cspbilling' 
   
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
   tag: '$(Build.BuildId)'
   vmImageName: 'ubuntu-latest'
-  
-  # 4. Added variables for Deployment
+
+  # 3. Matches your 'Consumption Service Connection' (Image 2)
   azureServiceConnection: 'Consumption Service Connection'
+  
+  # 4. Update this with the actual name of your Azure App Service
   webAppName: 'AzureConsumption'
 
 stages:
@@ -52,5 +54,5 @@ stages:
         azureSubscription: $(azureServiceConnection)
         appName: $(webAppName)
         containers: '$(imageRepository):$(tag)'
-        # 5. This tells Azure your Dockerfile is using port 8000
+        # Sets the port to 8000 as required by your Dockerfile
         appSettings: '-WEBSITES_PORT 8000'
