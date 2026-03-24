@@ -3,7 +3,7 @@ trigger:
 
 variables:
   # 2. Update this to the NAME of the Docker Hub Service Connection you created
-  dockerRegistryServiceConnection: 'DockerHubServiceConnection' 
+  dockerRegistryServiceConnection: 'Service Connection csp-billing' 
   
   # 3. For Docker Hub, this MUST be 'your-username/your-repo-name'
   imageRepository: 'lloydismael/cspbilling' 
