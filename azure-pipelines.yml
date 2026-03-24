@@ -1,21 +1,22 @@
 trigger:
-- main  # Change to 'master' if your branch name is master
+- main
 
 variables:
-  # 1. Matches your 'Service Connection csp-billing' (Image 4)
+  # 1. Matches your 'Service Connection csp-billing'
   dockerRegistryServiceConnection: 'Service Connection csp-billing' 
   
-  # 2. Your Docker Hub username / repository name
-  imageRepository: 'lloydismael/cspbilling' 
+  # 2. Updated to your new Docker Hub account and repository
+  imageRepository: 'lloydismael12/csp-billing' 
+  
+  # 3. Dynamic tag starting at v6.1 and incrementing by .1 for every build
+  # Format: v6. + [counter value that starts at 1]
+  tag: 'v6.$(counter("version_v6", 1))'
   
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
-  tag: '$(Build.BuildId)'
   vmImageName: 'ubuntu-latest'
 
-  # 3. Matches your 'Consumption Service Connection' (Image 2)
+  # 4. Matches your 'Consumption Service Connection'
   azureServiceConnection: 'Consumption Service Connection'
-  
-  # 4. Update this with the actual name of your Azure App Service
   webAppName: 'AzureConsumption'
 
 stages:
@@ -25,6 +26,7 @@ stages:
   - job: Build
     displayName: Build
     pool:
+      # Uses your self-hosted agent pool
       name: 'Default'
     steps:
     - task: Docker@2
@@ -53,6 +55,7 @@ stages:
       inputs:
         azureSubscription: $(azureServiceConnection)
         appName: $(webAppName)
+        # Deploys the specific versioned tag created in the Build stage
         containers: '$(imageRepository):$(tag)'
-        # Sets the port to 8000 as required by your Dockerfile
+        # Sets the port to 8000 as required by your Dockerfile [cite: 1]
         appSettings: '-WEBSITES_PORT 8000'
