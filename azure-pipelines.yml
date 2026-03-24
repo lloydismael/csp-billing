@@ -2,20 +2,19 @@ trigger:
 - main
 
 variables:
-  # 1. Matches your 'Service Connection csp-billing'
+  # 1. Your Docker Hub connection
   dockerRegistryServiceConnection: 'Service Connection csp-billing' 
   
-  # 2. Updated to your new Docker Hub account and repository
+  # 2. Your exact repository path
   imageRepository: 'lloydismael12/csp-billing' 
   
-  # 3. Dynamic tag starting at v6.1 and incrementing by .1 for every build
-  # Format: v6. + [counter value that starts at 1]
-  tag: 'v6.$(counter("version_v6", 1))'
+  # 3. SAFE SYNTAX: Use format() to combine 'v6.' and the counter
+  # This prevents "Expected mapping end" errors by keeping the expression clean
+  tag: $[ format('v6.{0}', counter('version_v6', 1)) ]
   
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
-  vmImageName: 'ubuntu-latest'
 
-  # 4. Matches your 'Consumption Service Connection'
+  # 4. Azure connections
   azureServiceConnection: 'Consumption Service Connection'
   webAppName: 'AzureConsumption'
 
@@ -24,10 +23,8 @@ stages:
   displayName: Build and push stage
   jobs:
   - job: Build
-    displayName: Build
     pool:
-      # Uses your self-hosted agent pool
-      name: 'Default'
+      name: 'Default' # Uses your self-hosted agent
     steps:
     - task: Docker@2
       displayName: Build and push to Docker Hub
@@ -46,7 +43,6 @@ stages:
   condition: succeeded()
   jobs:
   - job: Deploy
-    displayName: Deploy Job
     pool:
       name: 'Default'
     steps:
@@ -55,7 +51,6 @@ stages:
       inputs:
         azureSubscription: $(azureServiceConnection)
         appName: $(webAppName)
-        # Deploys the specific versioned tag created in the Build stage
+        # Quoting this string protects the colon and variable
         containers: '$(imageRepository):$(tag)'
-        # Sets the port to 8000 as required by your Dockerfile [cite: 1]
         appSettings: '-WEBSITES_PORT 8000'
