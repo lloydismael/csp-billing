@@ -25,7 +25,7 @@ stages:
   - job: Build
     displayName: Build
     pool:
-      vmImage: $(vmImageName)
+      name: 'Default'
     steps:
     - task: Docker@2
       displayName: Build and push to Docker Hub
@@ -46,7 +46,7 @@ stages:
   - job: Deploy
     displayName: Deploy Job
     pool:
-      vmImage: $(vmImageName)
+      name: 'Default'
     steps:
     - task: AzureWebAppContainer@1
       displayName: 'Azure App Service Config & Deploy'
