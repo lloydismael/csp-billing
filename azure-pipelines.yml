@@ -1,25 +1,27 @@
 trigger:
-- main
-
+  branches:
+    include:
+    - main
 variables:
-  dockerRegistryServiceConnection: 'Service Connection csp-billing' 
-  
-  imageRepository: 'lloydismael12/csp-billing' 
-  
-  tag: $[ format('v6.{0}', counter('version_v6', 1)) ]
-  
-  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
-
-  azureServiceConnection: 'Consumption Service Connection'
-  webAppName: 'AzureConsumption'
-
+- name: dockerRegistryServiceConnection
+  value: 'Service Connection csp-billing'
+- name: imageRepository
+  value: 'lloydismael12/csp-billing'
+- name: tag
+  value: $[ format('v6.{0}', counter('version_v6', 1)) ]
+- name: dockerfilePath
+  value: '$(Build.SourcesDirectory)/Dockerfile'
+- name: azureServiceConnection
+  value: 'Consumption Service Connection'
+- name: webAppName
+  value: 'AzureConsumption'
 stages:
 - stage: Build
   displayName: Build and push stage
   jobs:
   - job: Build
     pool:
-      name: 'Default' 
+      name: 'Default'
     steps:
     - task: Docker@2
       displayName: Build and push to Docker Hub
@@ -31,10 +33,10 @@ stages:
         tags: |
           $(tag)
           latest
-
 - stage: Deploy
   displayName: Deploy to Azure
-  dependsOn: Build
+  dependsOn:
+  - Build
   condition: succeeded()
   jobs:
   - job: Deploy
