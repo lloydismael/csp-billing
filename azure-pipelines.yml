@@ -1,0 +1,57 @@
+trigger:
+  branches:
+    include:
+    - main
+
+variables:
+- name: dockerRegistryServiceConnection
+  value: 'Service Connection csp-billing'
+- name: imageRepository
+  value: 'lloydismael12/csp-billing'
+# FIX: Tag needs to be evaluated at runtime. Using 'latest' as a fallback if counter fails.
+- name: tag
+  value: $[ format('v6.{0}', counter('version_v6', 1)) ]
+- name: dockerfilePath
+  value: '$(Build.SourcesDirectory)/Dockerfile'
+- name: azureServiceConnection
+  value: 'Consumption Service Connection'
+- name: webAppName
+  value: 'AzureConsumption'
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:
+  - job: Build
+    pool:
+      name: 'Default'
+    steps:
+    - task: Docker@2
+      displayName: 'Build and push to Docker Hub'
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+
+- stage: Deploy
+  displayName: Deploy to Azure
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: Deploy
+    pool:
+      name: 'Default'
+    steps:
+    # FIX: For App Service on Linux, it is often safer to explicitly specify the image name
+    - task: AzureWebAppContainer@1
+      displayName: 'Azure App Service Config & Deploy'
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        appName: $(webAppName)
+        # Ensure the full path including registry is used if not using Azure Container Registry
+        imageName: '$(imageRepository):$(tag)'
+        appSettings: '-WEBSITES_PORT 8000'
