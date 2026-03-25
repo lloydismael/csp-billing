@@ -2,19 +2,14 @@ trigger:
 - main
 
 variables:
-  # 1. Your Docker Hub connection
   dockerRegistryServiceConnection: 'Service Connection csp-billing' 
   
-  # 2. Your exact repository path
   imageRepository: 'lloydismael12/csp-billing' 
   
-  # 3. SAFE SYNTAX: Use format() to combine 'v6.' and the counter
-  # This prevents "Expected mapping end" errors by keeping the expression clean
   tag: $[ format('v6.{0}', counter('version_v6', 1)) ]
   
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
 
-  # 4. Azure connections
   azureServiceConnection: 'Consumption Service Connection'
   webAppName: 'AzureConsumption'
 
@@ -24,7 +19,7 @@ stages:
   jobs:
   - job: Build
     pool:
-      name: 'Default' # Uses your self-hosted agent
+      name: 'Default' 
     steps:
     - task: Docker@2
       displayName: Build and push to Docker Hub
@@ -51,6 +46,5 @@ stages:
       inputs:
         azureSubscription: $(azureServiceConnection)
         appName: $(webAppName)
-        # Quoting this string protects the colon and variable
         containers: '$(imageRepository):$(tag)'
         appSettings: '-WEBSITES_PORT 8000'
