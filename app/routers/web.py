@@ -258,8 +258,8 @@ async def comparison_page(
     request: Request,
     current_id: int | None = Query(default=None),
     previous_id: int | None = Query(default=None),
-    search: str | None = Query(default=None),
-    entitlement: str | None = Query(default=None),
+    customers: list[str] = Query(default=[]),
+    entitlements: list[str] = Query(default=[]),
     forex: float = Query(default=1.0, gt=0),
     margin: float = Query(default=1.0, gt=0),
     vat: float = Query(default=settings.default_vat, gt=0),
@@ -268,20 +268,42 @@ async def comparison_page(
 ):
     uploads = session.exec(select(Upload).order_by(Upload.created_at.desc())).all()
 
+    selected_customers = [c for c in customers if c and c.strip()]
+    selected_entitlements = [e for e in entitlements if e and e.strip()]
+
+    customer_options: list[str] = []
+    entitlement_options: list[dict] = []
     results = None
+
     if current_id and previous_id:
-        filters = {}
-        
+        try:
+            customer_options = queries.list_comparison_customers(current_id, previous_id)
+        except Exception:
+            customer_options = []
+
+        try:
+            entitlement_options = queries.list_comparison_entitlements(
+                current_id,
+                previous_id,
+                customers=selected_customers or None,
+            )
+        except Exception:
+            entitlement_options = []
+
+        # Drop any previously selected entitlements that are no longer valid for the customer scope.
+        valid_ent_values = {e["value"].lower() for e in entitlement_options}
+        if selected_entitlements and valid_ent_values:
+            selected_entitlements = [e for e in selected_entitlements if e.lower() in valid_ent_values]
+
         try:
             comparison_data = queries.compare_uploads(
-                current_id, 
-                previous_id, 
-                search=search, 
-                entitlement_search=entitlement,
-                filters=filters,
+                current_id,
+                previous_id,
+                customers=selected_customers or None,
+                entitlements=selected_entitlements or None,
                 forex=forex,
                 margin=margin,
-                vat=vat
+                vat=vat,
             )
             results = comparison_data["results"]
         except Exception:
@@ -296,8 +318,10 @@ async def comparison_page(
             "uploads": uploads,
             "current_id": current_id,
             "previous_id": previous_id,
-            "search": search,
-            "entitlement": entitlement,
+            "customer_options": customer_options,
+            "entitlement_options": entitlement_options,
+            "selected_customers": selected_customers,
+            "selected_entitlements": selected_entitlements,
             "forex": forex,
             "margin": margin,
             "vat": vat,

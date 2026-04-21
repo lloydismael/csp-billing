@@ -35,12 +35,22 @@
 
         <div class="form-group-row">
             <div class="form-group">
-                <label for="search">Customer Filter</label>
-                <input type="text" name="search" id="search" value="{{ search or '' }}" placeholder="Customer Name">
+                <label for="customers">Customer Filter</label>
+                <select name="customers" id="customers" multiple size="6" data-placeholder="Select period(s) first">
+                    {% for c in customer_options %}
+                    <option value="{{ c }}" {% if c in selected_customers %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+                <small class="filter-hint">Hold Ctrl (Cmd on Mac) to select multiple. Leave empty for all customers.</small>
             </div>
             <div class="form-group">
-                <label for="entitlement">Entitlement Filter</label>
-                <input type="text" name="entitlement" id="entitlement" value="{{ entitlement or '' }}" placeholder="Description or ID">
+                <label for="entitlements">Entitlement Filter</label>
+                <select name="entitlements" id="entitlements" multiple size="6" data-placeholder="Select customer(s) first">
+                    {% for e in entitlement_options %}
+                    <option value="{{ e.value }}" {% if e.value in selected_entitlements %}selected{% endif %}>{{ e.label }}</option>
+                    {% endfor %}
+                </select>
+                <small class="filter-hint">Scoped to the customers above. Leave empty for all entitlements.</small>
             </div>
         </div>
 
@@ -192,6 +202,22 @@
     }
     .button-compare:hover {
         background: #0d6efd;
+    }
+
+    .form-group select[multiple] {
+        padding: 0.5rem;
+        min-height: 140px;
+        background: #fff;
+    }
+    .form-group select[multiple]:disabled {
+        background: #f3f4f6;
+        color: #9ca3af;
+        cursor: not-allowed;
+    }
+    .filter-hint {
+        margin-top: 0.35rem;
+        color: #6b7280;
+        font-size: 0.75rem;
     }
     
     .data-table {
@@ -385,7 +411,99 @@ function downloadCSV(csv, filename) {
 
 document.addEventListener('DOMContentLoaded', function() {
     createResizers();
+    initComparisonFilters();
 });
+
+function initComparisonFilters() {
+    const currentSel = document.getElementById('current_id');
+    const prevSel = document.getElementById('previous_id');
+    const customersSel = document.getElementById('customers');
+    const entitlementsSel = document.getElementById('entitlements');
+    if (!currentSel || !prevSel || !customersSel || !entitlementsSel) return;
+
+    function periodsChosen() {
+        return currentSel.value && prevSel.value;
+    }
+
+    function setOptions(selectEl, items, placeholder) {
+        const previous = new Set(Array.from(selectEl.selectedOptions).map(o => o.value));
+        selectEl.innerHTML = '';
+        if (!items || items.length === 0) {
+            selectEl.disabled = true;
+            selectEl.dataset.placeholder = placeholder;
+            return;
+        }
+        selectEl.disabled = false;
+        for (const item of items) {
+            const opt = document.createElement('option');
+            if (typeof item === 'string') {
+                opt.value = item;
+                opt.textContent = item;
+            } else {
+                opt.value = item.value;
+                opt.textContent = item.label || item.value;
+            }
+            if (previous.has(opt.value)) opt.selected = true;
+            selectEl.appendChild(opt);
+        }
+    }
+
+    async function fetchJSON(url) {
+        const res = await fetch(url, { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Request failed: ' + res.status);
+        return res.json();
+    }
+
+    async function refreshCustomers() {
+        if (!periodsChosen()) {
+            setOptions(customersSel, [], 'Select period(s) first');
+            setOptions(entitlementsSel, [], 'Select customer(s) first');
+            return;
+        }
+        try {
+            const data = await fetchJSON(`/api/comparison/customers?current_id=${encodeURIComponent(currentSel.value)}&previous_id=${encodeURIComponent(prevSel.value)}`);
+            setOptions(customersSel, data.customers || [], 'No customers found');
+        } catch (err) {
+            console.error('Failed to load customers', err);
+            setOptions(customersSel, [], 'Failed to load customers');
+        }
+        await refreshEntitlements();
+    }
+
+    async function refreshEntitlements() {
+        if (!periodsChosen()) {
+            setOptions(entitlementsSel, [], 'Select customer(s) first');
+            return;
+        }
+        const selected = Array.from(customersSel.selectedOptions).map(o => o.value);
+        const params = new URLSearchParams();
+        params.set('current_id', currentSel.value);
+        params.set('previous_id', prevSel.value);
+        for (const c of selected) params.append('customers', c);
+        try {
+            const data = await fetchJSON(`/api/comparison/entitlements?${params.toString()}`);
+            setOptions(entitlementsSel, data.entitlements || [], 'No entitlements found');
+        } catch (err) {
+            console.error('Failed to load entitlements', err);
+            setOptions(entitlementsSel, [], 'Failed to load entitlements');
+        }
+    }
+
+    currentSel.addEventListener('change', refreshCustomers);
+    prevSel.addEventListener('change', refreshCustomers);
+    customersSel.addEventListener('change', refreshEntitlements);
+
+    // If the page loaded without both periods selected, ensure dropdowns are in the correct state.
+    if (!periodsChosen()) {
+        setOptions(customersSel, [], 'Select period(s) first');
+        setOptions(entitlementsSel, [], 'Select customer(s) first');
+    } else if (customersSel.options.length === 0) {
+        // Periods set but server didn't pre-populate; fetch client-side.
+        refreshCustomers();
+    } else if (entitlementsSel.options.length === 0) {
+        refreshEntitlements();
+    }
+}
 
 function createResizers() {
     const table = document.getElementById('comparisonTable');

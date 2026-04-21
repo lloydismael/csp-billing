@@ -460,12 +460,97 @@ def invoice_details(
     }
 
 
+def list_comparison_customers(
+    current_upload_id: int,
+    previous_upload_id: int,
+) -> List[str]:
+    """Return sorted, distinct customer names present in either upload."""
+    current_table = _view_name(current_upload_id)
+    prev_table = _view_name(previous_upload_id)
+    query = f"""
+        SELECT DISTINCT CustomerName
+        FROM (
+            SELECT CustomerName FROM {current_table}
+            WHERE CustomerName IS NOT NULL AND TRIM(CustomerName) <> ''
+            UNION
+            SELECT CustomerName FROM {prev_table}
+            WHERE CustomerName IS NOT NULL AND TRIM(CustomerName) <> ''
+        )
+        ORDER BY lower(CustomerName)
+    """
+    with _connect() as con:
+        rows = con.execute(query).fetchall()
+    return [r[0] for r in rows if r[0]]
+
+
+def list_comparison_entitlements(
+    current_upload_id: int,
+    previous_upload_id: int,
+    *,
+    customers: Sequence[str] | None = None,
+) -> List[Mapping[str, Any]]:
+    """Return distinct entitlements across both uploads, optionally scoped to given customers."""
+    current_table = _view_name(current_upload_id)
+    prev_table = _view_name(previous_upload_id)
+
+    customer_filter = ""
+    customer_params: List[Any] = []
+    if customers:
+        placeholders = ", ".join(["lower(?)"] * len(customers))
+        customer_filter = f"AND lower(CustomerName) IN ({placeholders})"
+        customer_params = list(customers)
+
+    query = f"""
+        SELECT EntitlementId, EntitlementDescription
+        FROM (
+            SELECT EntitlementId, EntitlementDescription FROM {current_table}
+            WHERE (
+                (EntitlementId IS NOT NULL AND TRIM(EntitlementId) <> '')
+                OR (EntitlementDescription IS NOT NULL AND TRIM(EntitlementDescription) <> '')
+            )
+            {customer_filter}
+            UNION
+            SELECT EntitlementId, EntitlementDescription FROM {prev_table}
+            WHERE (
+                (EntitlementId IS NOT NULL AND TRIM(EntitlementId) <> '')
+                OR (EntitlementDescription IS NOT NULL AND TRIM(EntitlementDescription) <> '')
+            )
+            {customer_filter}
+        )
+        GROUP BY EntitlementId, EntitlementDescription
+        ORDER BY lower(COALESCE(EntitlementDescription, EntitlementId, ''))
+    """
+    all_params = customer_params + customer_params
+    with _connect() as con:
+        rows = con.execute(query, all_params).fetchall()
+
+    entitlements: List[Mapping[str, Any]] = []
+    seen: set = set()
+    for ent_id, ent_desc in rows:
+        ent_id = (ent_id or "").strip()
+        ent_desc = (ent_desc or "").strip()
+        value = ent_id or ent_desc
+        if not value:
+            continue
+        key = (ent_id.lower(), ent_desc.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        label = ent_desc or ent_id
+        if ent_desc and ent_id and ent_desc.lower() != ent_id.lower():
+            label = f"{ent_desc} ({ent_id})"
+        entitlements.append({"value": value, "id": ent_id, "description": ent_desc, "label": label})
+    return entitlements
+
+
 def compare_uploads(
     current_upload_id: int,
     previous_upload_id: int,
     *,
     search: str | None = None,
     entitlement_search: str | None = None,
+    customers: Sequence[str] | None = None,
+    entitlements: Sequence[str] | None = None,
     filters: Mapping[str, Any] | None = None,
     forex: float | None = None,
     margin: float | None = None,
@@ -473,7 +558,40 @@ def compare_uploads(
 ) -> Mapping[str, Any]:
     current_table = _view_name(current_upload_id)
     prev_table = _view_name(previous_upload_id)
-    where_sql, where_params = _build_filters(search, filters)
+
+    clauses: List[str] = []
+    where_params: List[Any] = []
+
+    if customers:
+        placeholders = ", ".join(["lower(?)"] * len(customers))
+        clauses.append(f"lower(CustomerName) IN ({placeholders})")
+        where_params.extend(customers)
+    elif search:
+        clauses.append(
+            "(lower(CustomerName) LIKE '%' || lower(?) || '%' OR lower(ProductName) LIKE '%' || lower(?) || '%')"
+        )
+        where_params.extend([search, search])
+
+    if entitlements:
+        ent_conditions = []
+        for ent in entitlements:
+            ent_conditions.append(
+                "(lower(EntitlementId) = lower(?) OR lower(EntitlementDescription) = lower(?))"
+            )
+            where_params.extend([ent, ent])
+        clauses.append(f"({' OR '.join(ent_conditions)})")
+    elif entitlement_search:
+        clauses.append(
+            "(lower(EntitlementDescription) LIKE '%' || lower(?) || '%' OR lower(EntitlementId) LIKE '%' || lower(?) || '%')"
+        )
+        where_params.extend([entitlement_search, entitlement_search])
+
+    if filters:
+        for column, value in filters.items():
+            clauses.append(f"lower({column}) = lower(?)")
+            where_params.append(str(value))
+
+    where_sql = f" WHERE {' AND '.join(clauses)}" if clauses else ""
 
     default_vat_decimal = _decimal_or_default(settings.default_vat, Decimal("1"))
     forex_rate = _decimal_or_default(forex, Decimal("1"))
@@ -488,32 +606,9 @@ def compare_uploads(
     if vat_rate <= Decimal("0"):
         vat_rate = default_vat_decimal
 
-    extra_clauses = []
-    extra_params = []
-    if entitlement_search:
-        extra_clauses.append(
-            "(lower(EntitlementDescription) LIKE '%' || lower(?) || '%' OR lower(EntitlementId) LIKE '%' || lower(?) || '%')"
-        )
-        # We need this param twice for each time the clause is used (once for current, once for prev)
-        # Actually checking how params are used:
-        # We concatenate params later.
-        pass
-
-    # Reconstruct where_sql to include entitlement search if needed
-    # Since _build_filters returns string and list, we need to append to them.
-    # But wait, we define CTEs using where_sql.
-    
     current_where_sql = where_sql
     current_params = list(where_params)
-    
-    if entitlement_search:
-        if current_where_sql:
-            current_where_sql += " AND (lower(EntitlementDescription) LIKE '%' || lower(?) || '%' OR lower(EntitlementId) LIKE '%' || lower(?) || '%')"
-        else:
-            current_where_sql = " WHERE (lower(EntitlementDescription) LIKE '%' || lower(?) || '%' OR lower(EntitlementId) LIKE '%' || lower(?) || '%')"
-        current_params.extend([entitlement_search, entitlement_search])
-
-    prev_where_sql = current_where_sql # Same filters for both
+    prev_where_sql = current_where_sql
     prev_params = list(current_params)
 
     # Use a CTE for each period to aggregate data

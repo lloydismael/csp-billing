@@ -185,3 +185,39 @@ async def list_upload_invoices(
     invoices = queries.list_invoices(upload.id, limit=limit, search=search, filters=filters)
     return {"invoices": invoices}
 
+
+@router.get("/comparison/customers")
+async def comparison_customers(
+    current_id: int = Query(..., gt=0),
+    previous_id: int = Query(..., gt=0),
+    user: User = Depends(auth.get_current_user),
+    session: Session = Depends(get_session),
+):
+    _get_upload(current_id, session, user)
+    _get_upload(previous_id, session, user)
+    try:
+        customers = queries.list_comparison_customers(current_id, previous_id)
+    except Exception:
+        customers = []
+    return {"customers": customers}
+
+
+@router.get("/comparison/entitlements")
+async def comparison_entitlements(
+    current_id: int = Query(..., gt=0),
+    previous_id: int = Query(..., gt=0),
+    customers: list[str] = Query(default=[]),
+    user: User = Depends(auth.get_current_user),
+    session: Session = Depends(get_session),
+):
+    _get_upload(current_id, session, user)
+    _get_upload(previous_id, session, user)
+    customer_list = [c for c in customers if c and c.strip()] or None
+    try:
+        entitlements = queries.list_comparison_entitlements(
+            current_id, previous_id, customers=customer_list
+        )
+    except Exception:
+        entitlements = []
+    return {"entitlements": entitlements}
+

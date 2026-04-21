@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import ctypes
 import logging
+import os
 from pathlib import Path
 
 import duckdb
@@ -20,6 +22,40 @@ except Exception:  # pragma: no cover - handled gracefully
 logger = logging.getLogger(__name__)
 
 
+def _system_memory_total_mib() -> int | None:
+    try:
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        phys_pages = os.sysconf("SC_PHYS_PAGES")
+        if page_size and phys_pages:
+            return int((page_size * phys_pages) / (1024 * 1024))
+    except Exception:
+        pass
+
+    if os.name == "nt":
+        try:
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            memory_status = MEMORYSTATUSEX()
+            memory_status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory_status)):
+                return int(memory_status.ullTotalPhys / (1024 * 1024))
+        except Exception:
+            pass
+
+    return None
+
+
 def _normalize_duckdb_memory_limit(value: str) -> str:
     if not value:
         return "2048MiB"
@@ -35,22 +71,10 @@ def _normalize_duckdb_memory_limit(value: str) -> str:
 
     pct = max(1.0, min(95.0, pct))
 
-    mem_total_kib = None
-    try:
-        with open("/proc/meminfo", "r", encoding="utf-8") as meminfo:
-            for line in meminfo:
-                if line.startswith("MemTotal:"):
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        mem_total_kib = int(parts[1])
-                    break
-    except Exception:
-        mem_total_kib = None
-
-    if not mem_total_kib:
+    mem_total_mib = _system_memory_total_mib()
+    if not mem_total_mib:
         return "2048MiB"
 
-    mem_total_mib = mem_total_kib / 1024.0
     target_mib = max(256, int(mem_total_mib * (pct / 100.0)))
     return f"{target_mib}MiB"
 
