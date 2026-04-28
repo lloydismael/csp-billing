@@ -15,6 +15,77 @@ const buildQuery = (params) => {
     return query.toString();
 };
 
+const DASHBOARD_STATE_KEY = 'csp_dashboard_state_v2';
+const DASHBOARD_RECORDS_PREFIX = 'csp_dashboard_records_v2_';
+
+// Prefer localStorage so dashboard state (billing file, forex, margin, filters, and the
+// generated records cache) survives navigation to other pages, new tabs, and browser
+// restarts. Fall back to sessionStorage if localStorage is unavailable (private mode, etc.).
+const getStorage = () => {
+    try {
+        const probeKey = '__csp_probe__';
+        window.localStorage.setItem(probeKey, '1');
+        window.localStorage.removeItem(probeKey);
+        return window.localStorage;
+    } catch (err) {
+        try {
+            return window.sessionStorage;
+        } catch (_) {
+            return null;
+        }
+    }
+};
+
+const readPersistedState = () => {
+    const storage = getStorage();
+    if (!storage) return null;
+    try {
+        const raw = storage.getItem(DASHBOARD_STATE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (err) {
+        return null;
+    }
+};
+
+const writePersistedState = (state) => {
+    const storage = getStorage();
+    if (!storage) return;
+    try {
+        storage.setItem(DASHBOARD_STATE_KEY, JSON.stringify(state || {}));
+    } catch (err) {
+        /* storage may be full or unavailable; ignore */
+    }
+};
+
+const readPersistedRecords = (uploadId) => {
+    if (!uploadId) return null;
+    const storage = getStorage();
+    if (!storage) return null;
+    try {
+        const raw = storage.getItem(`${DASHBOARD_RECORDS_PREFIX}${uploadId}`);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : null;
+    } catch (err) {
+        return null;
+    }
+};
+
+const writePersistedRecords = (uploadId, records) => {
+    if (!uploadId) return;
+    const storage = getStorage();
+    if (!storage) return;
+    const key = `${DASHBOARD_RECORDS_PREFIX}${uploadId}`;
+    try {
+        storage.setItem(key, JSON.stringify(records || []));
+    } catch (err) {
+        // Likely quota exceeded; drop records cache so state stays consistent.
+        try { storage.removeItem(key); } catch (_) { /* ignore */ }
+    }
+};
+
 const initDashboard = () => {
     const container = document.querySelector('.page-grid');
     if (!container) {
@@ -22,8 +93,16 @@ const initDashboard = () => {
     }
 
     const uploadSelector = document.getElementById('select-upload');
+    const persistedState = readPersistedState() || {};
     let currentUploadId = '';
-    if (uploadSelector && uploadSelector.value) {
+    const availableUploadIds = uploadSelector
+        ? Array.from(uploadSelector.options).map((opt) => opt.value).filter(Boolean)
+        : [];
+    const persistedUploadId = persistedState.uploadId ? String(persistedState.uploadId) : '';
+    if (persistedUploadId && availableUploadIds.includes(persistedUploadId)) {
+        currentUploadId = persistedUploadId;
+        if (uploadSelector) uploadSelector.value = persistedUploadId;
+    } else if (uploadSelector && uploadSelector.value) {
         currentUploadId = uploadSelector.value;
     } else if (container.dataset.latestUpload) {
         currentUploadId = container.dataset.latestUpload;
@@ -92,6 +171,21 @@ const initDashboard = () => {
     marginInput.value = defaults.margin;
     if (vatInput) {
         vatInput.value = String(defaults.vat);
+    }
+
+    // Apply persisted input values (if any) on top of defaults so the user's last
+    // forex / margin / VAT choices survive navigation to other pages.
+    if (persistedState.forex !== undefined && persistedState.forex !== null && persistedState.forex !== '') {
+        forexInput.value = persistedState.forex;
+    }
+    if (persistedState.margin !== undefined && persistedState.margin !== null && persistedState.margin !== '') {
+        marginInput.value = persistedState.margin;
+    }
+    if (vatInput && persistedState.vat !== undefined && persistedState.vat !== null && persistedState.vat !== '') {
+        vatInput.value = String(persistedState.vat);
+    }
+    if (searchInput && persistedState.search) {
+        searchInput.value = persistedState.search;
     }
 
     let totalRecords = 0;
@@ -237,8 +331,10 @@ const initDashboard = () => {
             tableInfo.textContent = message || 'Select a billing file to view data.';
         }
         setSummaryPlaceholders();
-        const existingChart = Chart.getChart('chart-customers');
-        if (existingChart) existingChart.destroy();
+        ['chart-customers', 'chart-domains', 'chart-entitlements', 'chart-meters'].forEach(id => {
+            const existingChart = Chart.getChart(id);
+            if (existingChart) existingChart.destroy();
+        });
         window.requestAnimationFrame(updateSliderVisibility);
     };
 
@@ -481,6 +577,8 @@ const initDashboard = () => {
             const oldestKey = uploadDataCache.keys().next().value;
             uploadDataCache.delete(oldestKey);
         }
+
+        writePersistedRecords(key, records || []);
     };
 
     const getUploadCache = (uploadId) => {
@@ -506,6 +604,57 @@ const initDashboard = () => {
             }
         });
         return { filters, params };
+    };
+
+    const persistState = () => {
+        const { params } = readFilters();
+        writePersistedState({
+            uploadId: currentUploadId || '',
+            forex: forexInput ? forexInput.value : '',
+            margin: marginInput ? marginInput.value : '',
+            vat: vatInput ? vatInput.value : '',
+            search: searchInput ? searchInput.value : '',
+            customer: params.customer || '',
+            customer_domain: params.customer_domain || '',
+            invoice: params.invoice || '',
+        });
+    };
+
+    const restoreFilterSelections = () => {
+        const saved = {
+            customer: persistedState.customer || '',
+            customer_domain: persistedState.customer_domain || '',
+            invoice: persistedState.invoice || '',
+        };
+        dropdowns.forEach((dropdown) => {
+            const paramKey = dropdown.dataset.param || '';
+            if (!paramKey || !saved[paramKey]) return;
+            const value = saved[paramKey];
+            const hasOption = Array.from(dropdown.options).some((opt) => opt.value === value);
+            if (!hasOption) {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = value;
+                dropdown.appendChild(opt);
+            }
+            dropdown.value = value;
+        });
+        if (invoiceDropdown && saved.invoice) {
+            const hasOption = Array.from(invoiceDropdown.options).some((opt) => opt.value === saved.invoice);
+            if (!hasOption) {
+                const opt = document.createElement('option');
+                opt.value = saved.invoice;
+                opt.textContent = saved.invoice;
+                invoiceDropdown.appendChild(opt);
+            }
+            invoiceDropdown.value = saved.invoice;
+        }
+        if (customerDropdown) {
+            renderDomainOptions();
+            if (domainDropdown && saved.customer_domain) {
+                domainDropdown.value = saved.customer_domain;
+            }
+        }
     };
 
     const updateTableInfo = () => {
@@ -582,36 +731,84 @@ const initDashboard = () => {
         );
     };
 
-    const renderTopCustomersFromRecords = (records) => {
-        const grouped = new Map();
-        (records || []).forEach((row) => {
-            const label = row.CustomerName || 'Unknown';
-            const current = grouped.get(label) || 0;
-            grouped.set(label, current + (Number(row.PricingPreTaxTotal || 0) || 0));
-        });
+    const renderGenericChart = (records, chartId, extractLabel, chartType = 'doughnut') => {
+        try {
+            const grouped = new Map();
+            (records || []).forEach((row) => {
+                const label = extractLabel(row) || 'Unknown';
+                const current = grouped.get(label) || 0;
+                // Use PreTaxWithForex since that's the base value after exchange rate
+                grouped.set(label, current + (Number(row.PreTaxWithForex || row.PricingPreTaxTotal || 0) || 0));
+            });
 
-        const customers = Array.from(grouped.entries())
-            .map(([label, value]) => ({ label, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 10);
+            const items = Array.from(grouped.entries())
+                .map(([label, value]) => ({ label, value }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 10);
 
-        const customerChart = Chart.getChart('chart-customers');
-        if (customerChart) customerChart.destroy();
-        new Chart(document.getElementById('chart-customers'), {
-            type: 'doughnut',
-            data: {
-                labels: customers.map((c) => c.label),
-                datasets: [{
-                    data: customers.map((c) => c.value),
-                    backgroundColor: ['#0f81c7', '#4ac2ff', '#8bdcf9', '#2762d3', '#1c46a7', '#133577', '#1c9ac7'],
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'right' } },
-            },
-        });
+            const canvas = document.getElementById(chartId);
+            if (!canvas) return;
+
+            const existingChart = Chart.getChart(chartId);
+            if (existingChart) existingChart.destroy();
+            
+            const bgColors = ['#0f81c7', '#4ac2ff', '#8bdcf9', '#2762d3', '#1c46a7', '#133577', '#1c9ac7', '#082567', '#1e40af', '#60a5fa'];
+
+            new Chart(canvas, {
+                type: chartType,
+                data: {
+                    labels: items.map((c) => {
+                        // Truncate long labels for better display
+                        const text = String(c.label);
+                        return text.length > 30 ? text.substring(0, 27) + '...' : text;
+                    }),
+                    datasets: [{
+                        data: items.map((c) => Math.max(0, c.value)), // Force non-negative for Chart.js
+                        backgroundColor: bgColors,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: chartType === 'doughnut' ? 'right' : 'bottom',
+                            display: chartType === 'doughnut'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null && context.parsed !== undefined) {
+                                        const val = typeof context.parsed === 'object' ? context.parsed.y : context.parsed;
+                                        label += formatterCurrency(val);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    ...(chartType === 'bar' ? {
+                        scales: {
+                            y: { beginAtZero: true },
+                            x: { display: false } // Hide x-axis labels on bar chart if it gets too cluttered, but tooltip works
+                        }
+                    } : {})
+                },
+            });
+        } catch (err) {
+            console.error(`Error rendering chart ${chartId}:`, err);
+        }
+    };
+
+    const renderChartsFromRecords = (records) => {
+        renderGenericChart(records, 'chart-customers', (r) => r.CustomerName, 'doughnut');
+        renderGenericChart(records, 'chart-domains', (r) => r.CustomerDomainName, 'doughnut');
+        renderGenericChart(records, 'chart-entitlements', (r) => r.EntitlementDescription || r.EntitlementId, 'bar');
+        renderGenericChart(records, 'chart-meters', (r) => r.MeterName, 'bar');
     };
 
     const applyClientView = () => {
@@ -622,7 +819,7 @@ const initDashboard = () => {
         table.setData(transformed);
         updateTableInfo();
         renderSummaryFromRecords(transformed);
-        renderTopCustomersFromRecords(transformed);
+        renderChartsFromRecords(transformed);
         window.requestAnimationFrame(updateSliderVisibility);
     };
 
@@ -656,10 +853,33 @@ const initDashboard = () => {
         applyClientView();
     };
 
-    const refreshAll = async () => {
+    const refreshAll = async (options = {}) => {
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingProgress = document.getElementById('loading-progress');
-        
+        const cachedRecords = getUploadCache(currentUploadId);
+        const hasCache = Boolean(cachedRecords && cachedRecords.length > 0)
+            || (loadedUploadId === currentUploadId && allRecords.length > 0);
+
+        // Fast path: when records are already cached (either in memory or rehydrated from
+        // localStorage), render instantly without the loading overlay or artificial delay.
+        if (hasCache && !options.force) {
+            try {
+                if (cachedRecords && cachedRecords.length > 0) {
+                    allRecords = cachedRecords;
+                    loadedUploadId = currentUploadId;
+                }
+                updateDropdownOptions(allRecords);
+                updateInvoiceDropdownFromRecords(allRecords);
+                applyClientView();
+            } catch (error) {
+                console.error(error);
+                if (tableInfo) {
+                    tableInfo.textContent = 'Failed to load data.';
+                }
+            }
+            return;
+        }
+
         // Enforce visibility
         if (loadingOverlay) {
             loadingOverlay.style.setProperty('display', 'flex', 'important');
@@ -684,16 +904,7 @@ const initDashboard = () => {
             // Ensure at least 500ms loading time to avoid flickering
             const minLoadTime = new Promise(resolve => setTimeout(resolve, 800));
             const dataLoad = (async () => {
-                const cachedRecords = getUploadCache(currentUploadId);
-                if (cachedRecords && cachedRecords.length > 0) {
-                    allRecords = cachedRecords;
-                    loadedUploadId = currentUploadId;
-                    applyClientView();
-                } else if (loadedUploadId === currentUploadId && allRecords.length > 0) {
-                    applyClientView();
-                } else {
-                    await fetchData();
-                }
+                await fetchData();
             })();
             
             await Promise.all([dataLoad, minLoadTime]);
@@ -740,6 +951,7 @@ const initDashboard = () => {
             if (tableInfo) {
                 tableInfo.textContent = currentUploadId ? 'Loading...' : 'Select a billing file to view data.';
             }
+            persistState();
             if (currentUploadId) {
                 refreshAll();
             } else {
@@ -748,7 +960,10 @@ const initDashboard = () => {
         });
     }
 
-    btnRefresh.addEventListener('click', refreshAll);
+    btnRefresh.addEventListener('click', () => {
+        persistState();
+        refreshAll();
+    });
 
     const applyFilters = () => {
         if (!currentUploadId) {
@@ -762,6 +977,7 @@ const initDashboard = () => {
         }
 
         applyClientView();
+        persistState();
     };
 
     btnApply.addEventListener('click', applyFilters);
@@ -770,12 +986,25 @@ const initDashboard = () => {
         customerDropdown.addEventListener('change', () => {
             renderDomainOptions();
             renderSubOptions();
+            persistState();
         });
     }
     if (domainDropdown) {
         domainDropdown.addEventListener('change', () => {
             renderSubOptions();
+            persistState();
         });
+    }
+    [forexInput, marginInput, vatInput].forEach((input) => {
+        if (!input) return;
+        input.addEventListener('change', persistState);
+    });
+    dropdowns.forEach((dropdown) => {
+        if (!dropdown) return;
+        dropdown.addEventListener('change', persistState);
+    });
+    if (invoiceDropdown) {
+        invoiceDropdown.addEventListener('change', persistState);
     }
     if (btnInvoice) {
         btnInvoice.addEventListener('click', () => {
@@ -816,7 +1045,15 @@ const initDashboard = () => {
     });
 
     if (currentUploadId) {
-        refreshAll();
+        const hydrated = readPersistedRecords(currentUploadId);
+        if (hydrated && hydrated.length > 0) {
+            setUploadCache(currentUploadId, hydrated);
+        }
+        refreshAll().then(() => {
+            restoreFilterSelections();
+            applyClientView();
+            persistState();
+        }).catch(() => { /* handled inside refreshAll */ });
     } else {
         showNoUploadState('Please select a billing file to start.');
     }

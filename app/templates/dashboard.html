@@ -96,10 +96,22 @@
         </div>
     </section>
 
-    <section class="panel charts">
+    <section class="panel charts" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
         <div class="chart-item" style="height:320px;">
             <h2>Top Customers</h2>
             <canvas id="chart-customers"></canvas>
+        </div>
+        <div class="chart-item" style="height:320px;">
+            <h2>Top Domains</h2>
+            <canvas id="chart-domains"></canvas>
+        </div>
+        <div class="chart-item" style="height:320px;">
+            <h2>Top Entitlements</h2>
+            <canvas id="chart-entitlements"></canvas>
+        </div>
+        <div class="chart-item" style="height:320px;">
+            <h2>Top Meters</h2>
+            <canvas id="chart-meters"></canvas>
         </div>
     </section>
 
