@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime/customer data
+data/uploads/
+data/warehouse/
+data/*.db
+data/**/*.db
+data/**/*.duckdb
+data/**/*.parquet
+*.sqlite
+*.sqlite3
+*.duckdb
+*.parquet
+*.csv
+
+# Logs
+*.log
+logs/
+
+# Editors
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

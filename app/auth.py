@@ -114,6 +114,7 @@ def ensure_upload_access(upload_id: int, user: User, session: Session) -> Upload
 
 
 def ensure_default_accounts(session: Session) -> None:
+    """Create development-only starter accounts without resetting existing users."""
     defaults = [
         {
             "email": "Admin",
@@ -129,14 +130,10 @@ def ensure_default_accounts(session: Session) -> None:
         },
     ]
 
-    updated = False
     for spec in defaults:
         normalized_email = spec["email"].lower()
         existing = session.exec(select(User).where(User.email == normalized_email)).first()
         if existing:
-            if not verify_password(spec["password"], existing.password_hash):
-                existing.password_hash = get_password_hash(spec["password"])
-                updated = True
             continue
         create_user(
             session,
@@ -145,7 +142,3 @@ def ensure_default_accounts(session: Session) -> None:
             full_name=spec["full_name"],
             role=spec["role"],
         )
-        updated = True
-
-    if updated:
-        session.commit()

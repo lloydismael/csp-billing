@@ -18,10 +18,9 @@ RUN pip install --upgrade pip \
     && rm -rf /usr/local/lib/python*/ensurepip/_bundled/wheel*
 
 COPY app ./app
-COPY data ./data
 COPY README.md ./README.md
 
-RUN mkdir -p data/uploads data/warehouse
+RUN mkdir -p data/uploads data/warehouse data/warehouse/tmp
 
 RUN useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser ${APP_HOME}
@@ -29,5 +28,8 @@ RUN useradd --create-home --uid 10001 appuser \
 USER appuser
 
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

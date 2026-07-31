@@ -3,123 +3,175 @@
 <script src="/static/js/dashboard.js"></script>
 {% endblock %}
 {% block content %}
-<div class="page-grid"
+<div class="page-grid dashboard-page"
     data-latest-upload="{{ latest_upload.id if latest_upload else '' }}"
     data-default-forex="{{ default_forex }}"
     data-default-margin="{{ default_margin }}"
     data-default-vat="{{ default_vat }}">
-    <section class="panel metrics">
-        <header>
-            <h2>Billing Summary</h2>
-            <div class="controls">
-                <label>Billing File
-                    <select id="select-upload" {% if (completed_uploads|length) == 0 %}disabled{% endif %}>
-                        <option value="">Select billing file</option>
-                        {% for upload_item in completed_uploads %}
-                        {% set display_date = (upload_item.completed_at or upload_item.created_at).strftime('%Y-%m-%d') %}
-                        <option value="{{ upload_item.id }}" {% if latest_upload and upload_item.id == latest_upload.id %}selected{% endif %}>
-                            {{ display_date }} · {{ upload_item.original_filename }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </label>
-                <label>Forex
-                    <input type="number" step="0.01" min="0" value="{{ default_forex }}" id="input-forex">
-                </label>
-                <label>Margin
-                    <input type="number" step="0.01" min="0.01" value="{{ default_margin }}" id="input-margin">
-                </label>
-                <label>Tax
-                    <select id="input-vat" title="Tax mode">
-                        <option value="0">VAT Ex</option>
-                        <option value="1.12" selected>VAT Inc</option>
-                    </select>
-                </label>
-                <button id="btn-refresh" class="button-ios button-ios--accent" style="width: 100px; text-align: center;" title="Load billing data">Submit</button>
+    <section class="dashboard-hero">
+        <div>
+            <p class="eyebrow">Azure consumption analytics</p>
+            <h1>Billing Dashboard</h1>
+            <p class="dashboard-hero__subtitle">Review CSP usage, adjust billing assumptions, and generate customer-ready exports from one workspace.</p>
+        </div>
+        <div class="dashboard-hero__meta">
+            <span class="hero-chip"><i class="fa-solid fa-file-invoice-dollar"></i>{{ completed_uploads|length }} billing files</span>
+            {% if latest_upload %}
+            <span class="hero-chip hero-chip--strong"><i class="fa-solid fa-clock-rotate-left"></i>Latest: {{ latest_upload.original_filename }}</span>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="panel metrics dashboard-card">
+        <header class="section-header">
+            <div>
+                <p class="eyebrow">Billing controls</p>
+                <h2>Pricing assumptions</h2>
+                <p class="panel-subtitle">Choose a billing file, then tune forex, margin, and VAT mode.</p>
             </div>
         </header>
-        <div class="metric-cards">
-            <article class="card" id="card-pricing">
-                <h3>Pricing Total (Forex)</h3>
-                <p class="value">0</p>
+        <div class="controls billing-controls">
+            <label class="control-field control-field--wide">Billing File
+                <select id="select-upload" {% if (completed_uploads|length) == 0 %}disabled{% endif %}>
+                    <option value="">Select billing file</option>
+                    {% for upload_item in completed_uploads %}
+                    {% set display_date = (upload_item.completed_at or upload_item.created_at).strftime('%Y-%m-%d') %}
+                    <option value="{{ upload_item.id }}" {% if latest_upload and upload_item.id == latest_upload.id %}selected{% endif %}>
+                        {{ display_date }} · {{ upload_item.original_filename }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="control-field">Forex
+                <input type="number" step="0.01" min="0" value="{{ default_forex }}" id="input-forex">
+            </label>
+            <label class="control-field">Margin
+                <input type="number" step="0.01" min="0.01" value="{{ default_margin }}" id="input-margin">
+            </label>
+            <label class="control-field">Tax mode
+                <select id="input-vat" title="Tax mode">
+                    <option value="0">VAT Ex</option>
+                    <option value="1.12" selected>VAT Inc</option>
+                </select>
+            </label>
+            <button id="btn-refresh" class="button-ios button-ios--accent action-button" title="Load billing data"><i class="fa-solid fa-rotate"></i>Load Data</button>
+        </div>
+        <div class="metric-cards metric-cards--modern">
+            <article class="card metric-card" id="card-pricing">
+                <span class="metric-card__icon"><i class="fa-solid fa-tags"></i></span>
+                <div>
+                    <h3>Pricing Total</h3>
+                    <p class="metric-card__hint">Converted with forex</p>
+                    <p class="value">0</p>
+                </div>
             </article>
-            <article class="card" id="card-billing">
-                <h3>Billing Total</h3>
-                <p class="value">0</p>
+            <article class="card metric-card" id="card-billing">
+                <span class="metric-card__icon"><i class="fa-solid fa-receipt"></i></span>
+                <div>
+                    <h3>Billing Total</h3>
+                    <p class="metric-card__hint">Source billing amount</p>
+                    <p class="value">0</p>
+                </div>
             </article>
-            <article class="card" id="card-vatex">
-                <h3>Total VAT EX</h3>
-                <p class="value">0</p>
+            <article class="card metric-card" id="card-vatex">
+                <span class="metric-card__icon"><i class="fa-solid fa-percent"></i></span>
+                <div>
+                    <h3>Total VAT Ex</h3>
+                    <p class="metric-card__hint">Before VAT</p>
+                    <p class="value">0</p>
+                </div>
             </article>
-            <article class="card" id="card-vatinc">
-                <h3>Total VAT Inc</h3>
-                <p class="value">0</p>
+            <article class="card metric-card" id="card-vatinc">
+                <span class="metric-card__icon"><i class="fa-solid fa-circle-check"></i></span>
+                <div>
+                    <h3>Total VAT Inc</h3>
+                    <p class="metric-card__hint">Customer total</p>
+                    <p class="value">0</p>
+                </div>
             </article>
         </div>
     </section>
 
-    <section class="panel dataset">
-        <header>
+    <section class="panel dataset dashboard-card">
+        <header class="section-header section-header--split">
             <div>
-                <h2>Consumption Details</h2>
-                <p class="panel-subtitle">Search and filter customer consumption records</p>
+                <p class="eyebrow">Consumption records</p>
+                <h2>Details and filters</h2>
+                <p class="panel-subtitle">Search and filter customer consumption records. Select customer and domain before generating an invoice.</p>
             </div>
-            <div class="controls">
-                <input type="search" id="search-box" placeholder="Search customer or meter">
+        </header>
+        <div class="controls filter-panel" aria-label="Consumption filters">
+            <label class="control-field control-field--search">Search
+                <input type="search" id="search-box" placeholder="Search customer, domain, subscription, or meter">
+            </label>
+            <label class="control-field">Customer
                 <select id="filter-customer" data-filter="CustomerName" data-param="customer">
                     <option value="">Customer</option>
                 </select>
+            </label>
+            <label class="control-field">Domain
                 <select id="filter-domain" data-filter="CustomerDomainName" data-param="customer_domain">
                     <option value="">Domain</option>
                 </select>
+            </label>
+            <label class="control-field">Subscription
                 <select id="filter-subscription" data-filter="EntitlementDescription" data-param="subscription">
                     <option value="">Subscription</option>
                 </select>
+            </label>
+            <label class="control-field">Invoice
                 <select id="filter-invoice" data-filter="InvoiceNumber" data-param="invoice">
                     <option value="">Invoice</option>
                 </select>
-                <button id="btn-invoice" class="button-ios button-ios--accent" style="width: 100px; text-align: center;">Invoice</button>
-                <button id="btn-apply-filters" class="button-ios button-ios--accent" style="width: 100px; text-align: center;">Update</button>
-                <button id="btn-export" class="button-ios button-ios--accent" style="width: 100px; text-align: center;">Export</button>
+            </label>
+            <div class="filter-actions">
+                <button id="btn-apply-filters" class="button-ios button-ios--accent action-button"><i class="fa-solid fa-filter"></i>Apply Filters</button>
+                <button id="btn-invoice" class="button-ios button-ios--accent action-button"><i class="fa-solid fa-file-invoice"></i>Generate Invoice</button>
+                <button id="btn-export" class="button-ios button-ios--accent action-button"><i class="fa-solid fa-download"></i>Export CSV</button>
             </div>
-        </header>
+        </div>
 
-        <div class="table-scroll">
+        <div class="table-scroll modern-table-scroll">
             <div id="grid-table"></div>
         </div>
         <div class="table-scroll-slider" id="table-scroll-slider-wrapper">
-            <span class="table-scroll-slider__label">Scroll</span>
-            <input type="range" id="table-scroll-slider" min="0" max="100" value="0">
+            <span class="table-scroll-slider__label">Scroll table</span>
+            <input type="range" id="table-scroll-slider" min="0" max="100" value="0" aria-label="Horizontal table scroll">
         </div>
         <div class="table-footer">
             <div class="table-info" id="table-info">No records</div>
         </div>
     </section>
 
-    <section class="panel charts" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
-        <div class="chart-item" style="height:320px;">
-            <h2>Top Customers</h2>
+    <section class="chart-grid">
+        <div class="chart-item chart-card">
+            <div class="chart-card__header"><h2>Top Customers</h2><span>Spend distribution</span></div>
             <canvas id="chart-customers"></canvas>
         </div>
-        <div class="chart-item" style="height:320px;">
-            <h2>Top Domains</h2>
+        <div class="chart-item chart-card">
+            <div class="chart-card__header"><h2>Top Domains</h2><span>Domain-level share</span></div>
             <canvas id="chart-domains"></canvas>
         </div>
-        <div class="chart-item" style="height:320px;">
-            <h2>Top Entitlements</h2>
+        <div class="chart-item chart-card">
+            <div class="chart-card__header"><h2>Top Entitlements</h2><span>Subscription drivers</span></div>
             <canvas id="chart-entitlements"></canvas>
         </div>
-        <div class="chart-item" style="height:320px;">
-            <h2>Top Meters</h2>
+        <div class="chart-item chart-card">
+            <div class="chart-card__header"><h2>Top Meters</h2><span>Usage meters</span></div>
             <canvas id="chart-meters"></canvas>
         </div>
     </section>
 
-    <section class="panel uploads">
-        <header>
-            <h2>Recent Uploads</h2>
-            <a href="/uploads" class="button-ios button-ios--accent">Manage Uploads</a>
+    <section class="panel uploads dashboard-card">
+        <header class="section-header section-header--split">
+            <div>
+                <p class="eyebrow">Data operations</p>
+                <h2>Recent Uploads</h2>
+                <p class="panel-subtitle">Latest ingestion activity and billing file status.</p>
+            </div>
+            <a href="/uploads" class="button-ios button-ios--accent action-button"><i class="fa-solid fa-cloud-arrow-up"></i>Manage Uploads</a>
         </header>
+        <div class="uploads-table-wrap">
         <table class="uploads-table">
             <thead>
                 <tr>
@@ -135,7 +187,7 @@
                 {% for upload in uploads %}
                 <tr data-upload-id="{{ upload.id }}">
                     <td>{{ upload.original_filename }}</td>
-                    <td class="status {{ upload.status }}">{{ upload.status.value }}</td>
+                    <td><span class="status-badge status-badge--{{ upload.status.value }}">{{ upload.status.value }}</span></td>
                     <td>{{ '{:,}'.format(upload.row_count) }}</td>
                     <td>{{ '{:,.2f}'.format(upload.pricing_pretax_total) }}</td>
                     <td>{{ '{:,.2f}'.format(upload.billing_pretax_total) }}</td>
@@ -143,45 +195,23 @@
                 </tr>
                 {% endfor %}
                 {% if uploads|length == 0 %}
-                <tr><td colspan="6">No uploads yet. Ask an admin to ingest a file.</td></tr>
+                <tr><td colspan="6" class="empty-state">No uploads yet. Upload a billing CSV to get started.</td></tr>
                 {% endif %}
             </tbody>
         </table>
+        </div>
     </section>
 </div>
 
-<div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 9999; justify-content: center; align-items: center; flex-direction: column;">
-    <div class="loader" style="border: 5px solid #f3f3f3; border-top: 5px solid #0f81c7; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
-    <div style="margin-top: 20px; font-size: 1.2rem; font-weight: 600; color: #374151;">Loading billing data...</div>
-    <div style="margin-top: 15px; width: 300px; height: 10px; background-color: #e5e7eb; border-radius: 5px; overflow: hidden; position: relative;">
-        <div id="loading-progress" class="animated-progress" style="width: 0%; height: 100%; background-color: #0f81c7; transition: width 0.3s ease;"></div>
+<div id="loading-overlay" class="loading-overlay" role="status" aria-live="polite" aria-label="Loading billing data">
+    <div class="loading-card">
+        <div class="loader" aria-hidden="true"></div>
+        <h2>Loading billing data...</h2>
+        <p>Please do not refresh or leave the page.</p>
+        <div class="loading-progress-track">
+            <div id="loading-progress" class="animated-progress"></div>
+        </div>
     </div>
-    <div style="margin-top: 10px; color: #6b7280;">Please do not refresh or leave the page.</div>
 </div>
-
-<style>
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-@keyframes fillProgress {
-    0% { background-position: 20px 0; }
-    100% { background-position: 0 0; }
-}
-.animated-progress {
-    background-image: linear-gradient(
-        45deg,
-        rgba(255, 255, 255, 0.4) 25%,
-        transparent 25%,
-        transparent 50%,
-        rgba(255, 255, 255, 0.4) 50%,
-        rgba(255, 255, 255, 0.4) 75%,
-        transparent 75%,
-        transparent
-    );
-    background-size: 20px 20px;
-    animation: fillProgress 1s linear infinite;
-}
-</style>
 {% endblock %}
 {% block extra_js %}{% endblock %}

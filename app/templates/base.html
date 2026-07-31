@@ -4,23 +4,31 @@
     <meta charset="UTF-8">
     <title>{{ title if title else 'Azure CSP Billing Portal' }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-+0DmnO2Te74MkRUYw35vj0IadB1iKsFcfoTmya4A1NVuMcZV8K4D4ew3Efr2E1VlzDq+W8sELpAo0P5PLf4KJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=7.5.1">
     {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
+    {% set current_path = request.url.path if request is defined else '' %}
     <header class="portal-header">
         <div class="portal-header__inner">
-            <div class="logo">Azure CSP Billing</div>
+            <a class="portal-brand" href="/dashboard" aria-label="Azure CSP Billing dashboard">
+                <span class="portal-brand__mark"><i class="fa-solid fa-cloud"></i></span>
+                <span class="portal-brand__text">
+                    <span class="portal-brand__name">Azure CSP Billing</span>
+                    <span class="portal-brand__tagline">Consumption Portal</span>
+                </span>
+            </a>
             {% if user %}
-            <nav class="header-actions">
-                <a href="/dashboard" class="header-btn header-btn--ios">Dashboard</a>
-                <a href="/comparison" class="header-btn header-btn--ios">Comparison</a>
+            <nav class="header-actions" aria-label="Main navigation">
+                <a href="/dashboard" class="header-btn header-btn--ios {% if current_path == '/dashboard' %}is-active{% endif %}"><i class="fa-solid fa-chart-line"></i><span>Dashboard</span></a>
+                <a href="/comparison" class="header-btn header-btn--ios {% if current_path == '/comparison' %}is-active{% endif %}"><i class="fa-solid fa-code-compare"></i><span>Comparison</span></a>
                 {% if user.role == 'admin' %}
-                <a href="/uploads" class="header-btn header-btn--ios">Uploads</a>
+                <a href="/uploads" class="header-btn header-btn--ios {% if current_path == '/uploads' %}is-active{% endif %}"><i class="fa-solid fa-cloud-arrow-up"></i><span>Uploads</span></a>
                 {% endif %}
+                <span class="user-pill"><i class="fa-solid fa-user-shield"></i>{{ user.role.value if user.role is defined else user.role }}</span>
                 <a href="/logout" class="header-btn header-btn--ios logout-btn"><i class="fa-solid fa-right-from-bracket"></i><span>Logout</span></a>
             </nav>
             {% endif %}
