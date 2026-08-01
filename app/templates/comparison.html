@@ -1,11 +1,27 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="panel comparison-panel">
-    <header style="margin-bottom: 2rem;">
-        <h1>Resource Comparison</h1>
-        <p class="panel-subtitle">Compare consumption between two billing periods</p>
-    </header>
+<div class="page-grid comparison-page">
+    <section class="dashboard-hero">
+        <div>
+            <p class="eyebrow">Billing period analysis</p>
+            <h1>Resource Comparison</h1>
+            <p class="dashboard-hero__subtitle">Compare two billing periods, isolate customer or entitlement changes, and export the variance table.</p>
+        </div>
+        <div class="dashboard-hero__meta">
+            <span class="hero-chip"><i class="fa-solid fa-code-compare"></i>Current vs baseline</span>
+            <span class="hero-chip hero-chip--strong"><i class="fa-solid fa-filter-circle-dollar"></i>Filtered cost variance</span>
+        </div>
+    </section>
+
+    <section class="panel comparison-panel">
+        <header class="section-header">
+            <div>
+                <p class="eyebrow">Comparison setup</p>
+                <h2>Select periods and assumptions</h2>
+                <p class="panel-subtitle">Pick current and previous periods first. Customer and entitlement filters update from those selections.</p>
+            </div>
+        </header>
 
     <form method="get" action="/comparison" class="comparison-form">
         <div class="form-group-row">
@@ -74,8 +90,8 @@
     </form>
 
     {% if results is not none %}
-    <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-        <button type="button" class="secondary" onclick="exportTableToCSV('comparison_export.csv')" style="padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer;">
+    <div class="comparison-toolbar">
+        <button type="button" class="secondary" onclick="exportTableToCSV('comparison_export.csv')">
             <i class="fa-solid fa-download"></i> Export to CSV
         </button>
     </div>
@@ -118,191 +134,12 @@
         </table>
     </div>
     {% elif request.query_params.current_id %}
-    <div style="padding: 2rem; text-align: center; color: #666;">
+    <div class="comparison-message">
         No results or error occurred. Check if selected periods are valid.
     </div>
     {% endif %}
-</section>
-
-<style>
-    .comparison-panel {
-        background: #fff;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        padding: 2rem;
-        margin: 2rem auto;
-        width: 95%;
-        max-width: 100%;
-    }
-    
-    .comparison-results {
-        overflow-x: auto;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-    }
-    
-    .comparison-form {
-        margin-bottom: 2rem;
-        background: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border: 1px solid #e5e7eb;
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-    }
-    
-    .form-group-row {
-        display: flex;
-        gap: 1.5rem;
-        flex-wrap: wrap;
-    }
-
-    .financial-row {
-        border-top: 1px solid #e5e7eb;
-        padding-top: 1.5rem;
-        align-items: flex-end;
-    }
-    
-    .button-group {
-        flex: 0 0 auto;
-        min-width: auto;
-    }
-    
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-width: 200px;
-    }
-    
-    .form-group label {
-        margin-bottom: 0.5rem;
-        font-weight: 600;
-        color: #374151;
-        font-size: 0.9rem;
-    }
-    
-    .form-group select, .form-group input {
-        padding: 0.625rem;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
-        font-size: 0.95rem;
-    }
-    
-    .button-compare {
-        background: #0f81c7;
-        color: white;
-        border: none;
-        padding: 0.625rem 1.5rem;
-        border-radius: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 0.95rem;
-    }
-    .button-compare:hover {
-        background: #0d6efd;
-    }
-
-    .form-group select[multiple] {
-        padding: 0.5rem;
-        min-height: 140px;
-        background: #fff;
-    }
-    .form-group select[multiple]:disabled {
-        background: #f3f4f6;
-        color: #9ca3af;
-        cursor: not-allowed;
-    }
-    .filter-hint {
-        margin-top: 0.35rem;
-        color: #6b7280;
-        font-size: 0.75rem;
-    }
-    
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.875rem;
-        table-layout: fixed;
-        min-width: 1000px;
-    }
-    
-    .data-table th {
-        background-color: #f3f4f6;
-        padding: 0.75rem 1rem;
-        text-align: left;
-        border-bottom: 2px solid #e5e7eb;
-        font-weight: 600;
-        color: #374151;
-        position: relative;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    
-    .data-table td {
-        padding: 0.75rem 1rem;
-        border-bottom: 1px solid #e5e7eb;
-        vertical-align: middle;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    
-    .text-right {
-        text-align: right !important;
-    }
-    
-    .badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    
-    .badge-added { background-color: #d1fae5; color: #065f46; } /* Green */
-    .badge-deleted { background-color: #fee2e2; color: #991b1b; } /* Red */
-    .badge-increased { background-color: #ffedd5; color: #9a3412; } /* Orange */
-    .badge-decreased { background-color: #dbeafe; color: #1e40af; } /* Blue */
-    .badge-unchanged { background-color: #f3f4f6; color: #4b5563; } /* Grey */
-    
-    /* Optional: Row highlighting */
-    .status-deleted { background-color: #fff5f5; }
-    .status-added { background-color: #f0fdf4; }
-
-    th.sortable {
-        cursor: pointer;
-        user-select: none;
-    }
-    
-    th.sortable:hover {
-        background-color: #f3f4f6;
-    }
-    
-    th.sortable i {
-        margin-left: 0.5rem;
-        color: #9ca3af;
-    }
-
-    .resizer {
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: 5px;
-        cursor: col-resize;
-        user-select: none;
-        height: 100%;
-        touch-action: none;
-    }
-    
-    .resizer:hover, .resizing {
-        background-color: #0d6efd;
-    }
-</style>
+    </section>
+</div>
 
 <script>
 function sortTable(n) {

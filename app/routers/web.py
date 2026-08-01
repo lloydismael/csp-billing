@@ -62,11 +62,15 @@ async def dashboard(
     uploads = (
         session.exec(select(Upload).order_by(Upload.created_at.desc()).limit(10)).all()
     )
-    completed_uploads = session.exec(
-        select(Upload)
-        .where(Upload.status == UploadStatus.completed)
-        .order_by(Upload.created_at.desc())
-    ).all()
+    completed_uploads = [
+        upload
+        for upload in session.exec(
+            select(Upload)
+            .where(Upload.status == UploadStatus.completed)
+            .order_by(Upload.created_at.desc())
+        ).all()
+        if upload.id is not None and queries.upload_data_exists(upload.id)
+    ]
     # Don't auto-select the latest upload. Let user choose.
     latest_upload = None
     return templates.TemplateResponse(
@@ -266,7 +270,11 @@ async def comparison_page(
     user: User = Depends(auth.get_current_user),
     session=Depends(get_session),
 ):
-    uploads = session.exec(select(Upload).order_by(Upload.created_at.desc())).all()
+    uploads = [
+        upload
+        for upload in session.exec(select(Upload).order_by(Upload.created_at.desc())).all()
+        if upload.status != UploadStatus.completed or (upload.id is not None and queries.upload_data_exists(upload.id))
+    ]
 
     selected_customers = [c for c in customers if c and c.strip()]
     selected_entitlements = [e for e in entitlements if e and e.strip()]

@@ -230,18 +230,27 @@ const initDashboard = () => {
         invoiceOptionsLoaded = false;
     };
 
+    const columnControlGroups = {
+        EntitlementDescription: 'entitlement',
+        EntitlementId: 'entitlement',
+        MeterCategory: 'meter',
+        MeterSubCategory: 'meter',
+        MeterName: 'meter',
+        MeterType: 'meter',
+    };
+
     const columnDefs = [
         { title: 'Customer', field: 'CustomerName', width: 220 },
         { title: 'Domain', field: 'CustomerDomainName', width: 220 },
-        { title: 'Entitlement', field: 'EntitlementDescription', width: 220, headerFilter: 'input', headerFilterPlaceholder: 'Filter entitlement', controlGroup: 'entitlement' },
-        { title: 'Entitlement ID', field: 'EntitlementId', width: 200, headerFilter: 'input', headerFilterPlaceholder: 'Filter entitlement id', controlGroup: 'entitlement' },
+        { title: 'Entitlement', field: 'EntitlementDescription', width: 220, headerFilter: 'input', headerFilterPlaceholder: 'Filter entitlement' },
+        { title: 'Entitlement ID', field: 'EntitlementId', width: 200, headerFilter: 'input', headerFilterPlaceholder: 'Filter entitlement id' },
         { title: 'Tags', field: 'Tags', width: 220 },
         { title: 'Invoice', field: 'InvoiceNumber', width: 140 },
         { title: 'Product', field: 'ProductName', width: 220 },
-        { title: 'Meter Category', field: 'MeterCategory', width: 160, headerFilter: 'input', headerFilterPlaceholder: 'Filter category', controlGroup: 'meter' },
-        { title: 'Meter Subcategory', field: 'MeterSubCategory', width: 180, headerFilter: 'input', headerFilterPlaceholder: 'Filter subcategory', controlGroup: 'meter' },
-        { title: 'Meter Name', field: 'MeterName', width: 200, headerFilter: 'input', headerFilterPlaceholder: 'Filter name', controlGroup: 'meter' },
-        { title: 'Meter Type', field: 'MeterType', width: 160, headerFilter: 'input', headerFilterPlaceholder: 'Filter type', controlGroup: 'meter' },
+        { title: 'Meter Category', field: 'MeterCategory', width: 160, headerFilter: 'input', headerFilterPlaceholder: 'Filter category' },
+        { title: 'Meter Subcategory', field: 'MeterSubCategory', width: 180, headerFilter: 'input', headerFilterPlaceholder: 'Filter subcategory' },
+        { title: 'Meter Name', field: 'MeterName', width: 200, headerFilter: 'input', headerFilterPlaceholder: 'Filter name' },
+        { title: 'Meter Type', field: 'MeterType', width: 160, headerFilter: 'input', headerFilterPlaceholder: 'Filter type' },
         { title: 'Usage Date', field: 'UsageDate', width: 140 },
         { title: 'Quantity', field: 'Quantity', width: 120, hozAlign: 'right' },
         { title: 'Unit Price', field: 'UnitPrice', width: 120, formatter: (cell) => formatterCurrency(cell.getValue()) },
@@ -256,32 +265,22 @@ const initDashboard = () => {
     ];
 
     let table;
+    let tableReady = false;
 
-    const getColumnControlMeta = () => {
-        if (table && typeof table.getColumns === 'function') {
-            return table.getColumns()
-                .map((column) => {
-                    const definition = column.getDefinition ? column.getDefinition() || {} : {};
-                    const field = definition.field || (column.getField ? column.getField() : undefined);
-                    if (!field) {
-                        return null;
-                    }
-                    return {
-                        field,
-                        title: definition.title || field,
-                        controlGroup: definition.controlGroup || 'default',
-                    };
-                })
-                .filter(Boolean);
+    const safeClearTable = () => {
+        if (!table || !tableReady || typeof table.clearData !== 'function') {
+            return;
         }
-        return columnDefs
-            .filter((def) => Boolean(def.field))
-            .map((def) => ({
-                field: def.field,
-                title: def.title || def.field,
-                controlGroup: def.controlGroup || 'default',
-            }));
+        table.clearData();
     };
+
+    const getColumnControlMeta = () => columnDefs
+        .filter((def) => Boolean(def.field))
+        .map((def) => ({
+            field: def.field,
+            title: def.title || def.field,
+            controlGroup: columnControlGroups[def.field] || 'default',
+        }));
 
     const columnHeaderMenu = () => getColumnControlMeta().map((colDef) => ({
         label: `<span>${colDef.title}</span>`,
@@ -306,6 +305,9 @@ const initDashboard = () => {
         columns: columnDefs,
         placeholder: 'Loading records...'
     });
+    table.on('tableBuilt', () => {
+        tableReady = true;
+    });
 
     const updateSliderVisibility = () => {
         if (!tableScrollContainer || !scrollSlider || !scrollSliderWrapper) return;
@@ -323,7 +325,7 @@ const initDashboard = () => {
     const showNoUploadState = (message) => {
         resetFiltersForUploadChange();
         totalRecords = 0;
-        table.clearData();
+        safeClearTable();
         if (tableScrollContainer) {
             tableScrollContainer.scrollLeft = 0;
         }
@@ -751,6 +753,12 @@ const initDashboard = () => {
 
             const existingChart = Chart.getChart(chartId);
             if (existingChart) existingChart.destroy();
+
+            canvas.removeAttribute('height');
+            canvas.removeAttribute('width');
+            canvas.style.height = '260px';
+            canvas.style.maxHeight = '260px';
+            canvas.style.width = '100%';
             
             const bgColors = ['#0f81c7', '#4ac2ff', '#8bdcf9', '#2762d3', '#1c46a7', '#133577', '#1c9ac7', '#082567', '#1e40af', '#60a5fa'];
 
@@ -770,6 +778,8 @@ const initDashboard = () => {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    resizeDelay: 150,
+                    animation: false,
                     plugins: {
                         legend: {
                             position: chartType === 'doughnut' ? 'right' : 'bottom',
@@ -942,7 +952,7 @@ const initDashboard = () => {
             currentUploadId = uploadSelector.value;
             resetFiltersForUploadChange();
             totalRecords = 0;
-            table.clearData();
+            safeClearTable();
             setSummaryPlaceholders();
             if (tableScrollContainer) {
                 tableScrollContainer.scrollLeft = 0;

@@ -22,6 +22,8 @@ def _get_upload(upload_id: int, session: Session, user: User) -> Upload:
         raise HTTPException(status_code=404, detail="Upload not found")
     if upload.status != UploadStatus.completed and user.role != UserRole.admin:
         raise HTTPException(status_code=403, detail="Upload still processing")
+    if upload.status == UploadStatus.completed and not queries.upload_data_exists(upload_id):
+        raise HTTPException(status_code=404, detail="Processed upload data is missing")
     return upload
 
 

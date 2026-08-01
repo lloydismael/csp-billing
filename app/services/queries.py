@@ -8,6 +8,10 @@ import duckdb
 from app.config import settings
 
 
+def upload_data_exists(upload_id: int) -> bool:
+    return (settings.processed_dir / f"upload_{upload_id}.parquet").exists()
+
+
 def _decimal_or_default(value: Any, default: Decimal = Decimal("0")) -> Decimal:
     if value is None:
         return default

@@ -3,35 +3,59 @@
 <script src="/static/js/uploads.js" defer></script>
 {% endblock %}
 {% block content %}
-<section class="panel uploads-admin">
-    <header>
+<div class="page-grid">
+    <section class="dashboard-hero">
         <div>
+            <p class="eyebrow">Admin data operations</p>
             <h1>Manage Uploads</h1>
-            <p class="panel-subtitle">Upload partner billing CSV files</p>
+            <p class="dashboard-hero__subtitle">Upload partner billing CSV files, preview local totals, and monitor ingestion status.</p>
         </div>
-        <div class="hint">Maximum size: {{ max_size }} MB</div>
-    </header>
-    <form id="upload-form" class="upload-form" method="post" action="/uploads" enctype="multipart/form-data">
-        <label class="file-input">
-            <span>Select CSV file</span>
-            <input id="file-input" type="file" name="file" accept=".csv" required>
-        </label>
-        <input id="client-meta" type="hidden" name="client_meta" value="">
-        <button id="btn-upload" type="submit" class="primary">Upload</button>
-    </form>
+        <div class="dashboard-hero__meta">
+            <span class="hero-chip"><i class="fa-solid fa-file-csv"></i>CSV billing files</span>
+            <span class="hero-chip hero-chip--strong"><i class="fa-solid fa-gauge-high"></i>Max {{ max_size }} MB</span>
+        </div>
+    </section>
 
-    <div id="upload-preprocess" style="display:none; margin-top:1rem; padding:1rem; border:1px solid #e5e7eb; border-radius:8px; background:#f8fafc;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
-            <strong id="preprocess-status">Preparing file...</strong>
-            <span id="preprocess-percent">0%</span>
-        </div>
-        <div style="margin-top:0.5rem; background:#e5e7eb; border-radius:999px; height:10px; overflow:hidden;">
-            <div id="preprocess-bar" style="height:10px; width:0%; background:#0f81c7;"></div>
-        </div>
-        <div id="preprocess-summary" style="margin-top:0.75rem; color:#334155; font-size:0.9rem;"></div>
-    </div>
+    <section class="panel uploads-admin">
+        <header class="section-header section-header--split">
+            <div>
+                <p class="eyebrow">Step 1</p>
+                <h2>Choose and preprocess file</h2>
+                <p class="panel-subtitle">The browser previews row counts and totals before the server imports the data.</p>
+            </div>
+            <div class="hint">Accepted format: `.csv`</div>
+        </header>
+        <form id="upload-form" class="upload-form" method="post" action="/uploads" enctype="multipart/form-data">
+            <label class="file-input">
+                <span>Select CSV file</span>
+                <input id="file-input" type="file" name="file" accept=".csv" required>
+            </label>
+            <input id="client-meta" type="hidden" name="client_meta" value="">
+            <button id="btn-upload" type="submit" class="primary"><i class="fa-solid fa-cloud-arrow-up"></i> Upload</button>
+        </form>
 
-    <table class="uploads-table">
+        <div id="upload-preprocess" class="upload-preprocess">
+            <div class="upload-preprocess__header">
+                <strong id="preprocess-status">Preparing file...</strong>
+                <span id="preprocess-percent">0%</span>
+            </div>
+            <div class="upload-preprocess__track">
+                <div id="preprocess-bar" class="upload-preprocess__bar"></div>
+            </div>
+            <div id="preprocess-summary" class="upload-preprocess__summary"></div>
+        </div>
+    </section>
+
+    <section class="panel uploads-admin">
+        <header class="section-header">
+            <div>
+                <p class="eyebrow">Step 2</p>
+                <h2>Upload history</h2>
+                <p class="panel-subtitle">Review recently ingested files, processing status, totals, and errors.</p>
+            </div>
+        </header>
+        <div class="uploads-table-wrap">
+        <table class="uploads-table">
         <thead>
             <tr>
                 <th>File</th>
@@ -49,7 +73,7 @@
             {% for upload in uploads %}
             <tr>
                 <td>{{ upload.original_filename }}</td>
-                <td class="status {{ upload.status }}">{{ upload.status.value }}</td>
+                <td><span class="status {{ upload.status.value }}">{{ upload.status.value }}</span></td>
                 <td>{{ '{:,}'.format(upload.row_count) }}</td>
                 <td>{{ '{:,.2f}'.format(upload.pricing_pretax_total) }}</td>
                 <td>{{ '{:,.2f}'.format(upload.billing_pretax_total) }}</td>
@@ -64,9 +88,11 @@
             </tr>
             {% endfor %}
             {% if uploads|length == 0 %}
-               <tr><td colspan="9">No data ingested yet.</td></tr>
+               <tr><td colspan="9" class="empty-state">No data ingested yet. Upload a billing CSV to get started.</td></tr>
             {% endif %}
         </tbody>
     </table>
-</section>
+        </div>
+    </section>
+</div>
 {% endblock %}

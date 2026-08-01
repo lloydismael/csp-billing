@@ -12,7 +12,7 @@
         <div>
             <p class="eyebrow">Azure consumption analytics</p>
             <h1>Billing Dashboard</h1>
-            <p class="dashboard-hero__subtitle">Review CSP usage, adjust billing assumptions, and generate customer-ready exports from one workspace.</p>
+            <p class="dashboard-hero__subtitle">Follow the billing flow: load a file, review totals, filter records, then generate customer-ready invoices or exports.</p>
         </div>
         <div class="dashboard-hero__meta">
             <span class="hero-chip"><i class="fa-solid fa-file-invoice-dollar"></i>{{ completed_uploads|length }} billing files</span>
@@ -25,9 +25,9 @@
     <section class="panel metrics dashboard-card">
         <header class="section-header">
             <div>
-                <p class="eyebrow">Billing controls</p>
-                <h2>Pricing assumptions</h2>
-                <p class="panel-subtitle">Choose a billing file, then tune forex, margin, and VAT mode.</p>
+                <p class="eyebrow">Step 1 · Billing controls</p>
+                <h2>Select file and pricing assumptions</h2>
+                <p class="panel-subtitle">Choose a billing file, then tune forex, margin, and VAT mode before loading records.</p>
             </div>
         </header>
         <div class="controls billing-controls">
@@ -95,8 +95,8 @@
     <section class="panel dataset dashboard-card">
         <header class="section-header section-header--split">
             <div>
-                <p class="eyebrow">Consumption records</p>
-                <h2>Details and filters</h2>
+                <p class="eyebrow">Step 2 · Consumption records</p>
+                <h2>Filter, invoice, and export</h2>
                 <p class="panel-subtitle">Search and filter customer consumption records. Select customer and domain before generating an invoice.</p>
             </div>
         </header>
@@ -143,7 +143,15 @@
         </div>
     </section>
 
-    <section class="chart-grid">
+    <section class="chart-section">
+        <header class="section-header">
+            <div>
+                <p class="eyebrow">Step 3 · Analytics</p>
+                <h2>Review spend drivers</h2>
+                <p class="panel-subtitle">Use these charts to understand which customers, domains, entitlements, and meters drive the selected billing period.</p>
+            </div>
+        </header>
+        <div class="chart-grid">
         <div class="chart-item chart-card">
             <div class="chart-card__header"><h2>Top Customers</h2><span>Spend distribution</span></div>
             <canvas id="chart-customers"></canvas>
@@ -159,6 +167,7 @@
         <div class="chart-item chart-card">
             <div class="chart-card__header"><h2>Top Meters</h2><span>Usage meters</span></div>
             <canvas id="chart-meters"></canvas>
+        </div>
         </div>
     </section>
 
