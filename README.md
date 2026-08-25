@@ -11,6 +11,20 @@ A FastAPI-based web portal for Cloud Solution Providers to ingest large Azure us
 - **Dashboards** surfacing top customers, daily spend trends, and configurable billing summaries.
 - **Container-ready** deployment targeting Azure App Service for Containers.
 
+## Installed Skills
+
+This repository includes the following upstream skill repositories as tracked Git submodules in the `skills/` folder:
+
+- `skills/ui-ux-pro-max-skill` — UI/UX design intelligence and design-system generation guidance
+- `skills/caveman` — token-efficient agent workflow tooling for shorter, higher-signal outputs
+- `skills/rtk` — shell-output filtering and compression to reduce noisy command output seen by agents
+
+Use the following command after pulling repo changes to bring the submodule contents in sync:
+
+```bash
+git submodule update --init --recursive
+```
+
 ## Getting Started
 
 ### Prerequisites
