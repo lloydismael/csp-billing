@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block base_scripts %}
-<script src="/static/js/dashboard.js"></script>
+<script id="dashboard-upload-meta" type="application/json">{{ upload_cache_meta_json | safe }}</script>
+<script src="/static/js/dashboard.js?v=8.1.0"></script>
 {% endblock %}
 {% block content %}
 <div class="page-grid dashboard-page"
@@ -204,7 +205,7 @@
                 </tr>
                 {% endfor %}
                 {% if uploads|length == 0 %}
-                <tr><td colspan="6" class="empty-state">No uploads yet. Upload a billing CSV to get started.</td></tr>
+                <tr><td colspan="6" class="empty-state">No uploads yet. Upload a billing CSV or XLSX file to get started.</td></tr>
                 {% endif %}
             </tbody>
         </table>

@@ -16,11 +16,14 @@ const buildQuery = (params) => {
 };
 
 const DASHBOARD_STATE_KEY = 'csp_dashboard_state_v2';
-const DASHBOARD_RECORDS_PREFIX = 'csp_dashboard_records_v2_';
+const DASHBOARD_RECORDS_PREFIX = 'csp_dashboard_records_v3_';
+const DASHBOARD_CACHE_DB = 'csp-dashboard-cache';
+const DASHBOARD_CACHE_STORE = 'records';
+const DASHBOARD_CACHE_VERSION = 1;
+const DASHBOARD_CACHE_MAX_ITEMS = 5;
 
-// Prefer localStorage so dashboard state (billing file, forex, margin, filters, and the
-// generated records cache) survives navigation to other pages, new tabs, and browser
-// restarts. Fall back to sessionStorage if localStorage is unavailable (private mode, etc.).
+// Prefer localStorage for lightweight UI state only. Large billing records are stored in
+// IndexedDB so page navigation does not force a billing-file re-download.
 const getStorage = () => {
     try {
         const probeKey = '__csp_probe__';
@@ -35,6 +38,44 @@ const getStorage = () => {
         }
     }
 };
+
+const readUploadMeta = () => {
+    const metaEl = document.getElementById('dashboard-upload-meta');
+    if (!metaEl) return {};
+    try {
+        const parsed = JSON.parse(metaEl.textContent || '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_) {
+        return {};
+    }
+};
+
+const getUploadCacheVersion = (uploadId) => {
+    const meta = readUploadMeta();
+    return meta[String(uploadId || '')]?.cache_version || '';
+};
+
+const makeRecordCacheKey = (uploadId, cacheVersion) => {
+    if (!uploadId || !cacheVersion) return '';
+    return `${DASHBOARD_RECORDS_PREFIX}${uploadId}:${cacheVersion}`;
+};
+
+const openDashboardCacheDb = () => new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) {
+        reject(new Error('IndexedDB unavailable'));
+        return;
+    }
+    const request = indexedDB.open(DASHBOARD_CACHE_DB, DASHBOARD_CACHE_VERSION);
+    request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(DASHBOARD_CACHE_STORE)) {
+            const store = db.createObjectStore(DASHBOARD_CACHE_STORE, { keyPath: 'key' });
+            store.createIndex('savedAt', 'savedAt', { unique: false });
+        }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('IndexedDB open failed'));
+});
 
 const readPersistedState = () => {
     const storage = getStorage();
@@ -59,34 +100,77 @@ const writePersistedState = (state) => {
     }
 };
 
-const readPersistedRecords = (uploadId) => {
-    if (!uploadId) return null;
-    const storage = getStorage();
-    if (!storage) return null;
+const cleanupPersistedRecords = async () => {
     try {
-        const raw = storage.getItem(`${DASHBOARD_RECORDS_PREFIX}${uploadId}`);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : null;
-    } catch (err) {
+        const db = await openDashboardCacheDb();
+        const items = await new Promise((resolve, reject) => {
+            const tx = db.transaction(DASHBOARD_CACHE_STORE, 'readonly');
+            const store = tx.objectStore(DASHBOARD_CACHE_STORE);
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result || []);
+            request.onerror = () => reject(request.error);
+        });
+        const sorted = items.sort((a, b) => Number(b.savedAt || 0) - Number(a.savedAt || 0));
+        const stale = sorted.slice(DASHBOARD_CACHE_MAX_ITEMS);
+        if (!stale.length) return;
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(DASHBOARD_CACHE_STORE, 'readwrite');
+            const store = tx.objectStore(DASHBOARD_CACHE_STORE);
+            stale.forEach((item) => store.delete(item.key));
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (_) {
+        // Cache cleanup is best-effort only.
+    }
+};
+
+const readPersistedRecords = async (uploadId) => {
+    const cacheVersion = getUploadCacheVersion(uploadId);
+    const key = makeRecordCacheKey(uploadId, cacheVersion);
+    if (!key) return null;
+    try {
+        const db = await openDashboardCacheDb();
+        const item = await new Promise((resolve, reject) => {
+            const tx = db.transaction(DASHBOARD_CACHE_STORE, 'readonly');
+            const store = tx.objectStore(DASHBOARD_CACHE_STORE);
+            const request = store.get(key);
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => reject(request.error);
+        });
+        return item && Array.isArray(item.records) ? item.records : null;
+    } catch (_) {
         return null;
     }
 };
 
-const writePersistedRecords = (uploadId, records) => {
-    if (!uploadId) return;
-    const storage = getStorage();
-    if (!storage) return;
-    const key = `${DASHBOARD_RECORDS_PREFIX}${uploadId}`;
+const writePersistedRecords = async (uploadId, records) => {
+    const cacheVersion = getUploadCacheVersion(uploadId);
+    const key = makeRecordCacheKey(uploadId, cacheVersion);
+    if (!key) return;
     try {
-        storage.setItem(key, JSON.stringify(records || []));
-    } catch (err) {
-        // Likely quota exceeded; drop records cache so state stays consistent.
-        try { storage.removeItem(key); } catch (_) { /* ignore */ }
+        const db = await openDashboardCacheDb();
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(DASHBOARD_CACHE_STORE, 'readwrite');
+            const store = tx.objectStore(DASHBOARD_CACHE_STORE);
+            store.put({
+                key,
+                uploadId: String(uploadId),
+                cacheVersion,
+                records: records || [],
+                rowCount: Array.isArray(records) ? records.length : 0,
+                savedAt: Date.now(),
+            });
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+        cleanupPersistedRecords();
+    } catch (_) {
+        // Large-record persistence is an optimization. Ignore cache failures.
     }
 };
 
-const initDashboard = () => {
+const initDashboard = async () => {
     const container = document.querySelector('.page-grid');
     if (!container) {
         return;
@@ -753,12 +837,6 @@ const initDashboard = () => {
 
             const existingChart = Chart.getChart(chartId);
             if (existingChart) existingChart.destroy();
-
-            canvas.removeAttribute('height');
-            canvas.removeAttribute('width');
-            canvas.style.height = '260px';
-            canvas.style.maxHeight = '260px';
-            canvas.style.width = '100%';
             
             const bgColors = ['#0f81c7', '#4ac2ff', '#8bdcf9', '#2762d3', '#1c46a7', '#133577', '#1c9ac7', '#082567', '#1e40af', '#60a5fa'];
 
@@ -778,8 +856,6 @@ const initDashboard = () => {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    resizeDelay: 150,
-                    animation: false,
                     plugins: {
                         legend: {
                             position: chartType === 'doughnut' ? 'right' : 'bottom',
@@ -866,12 +942,18 @@ const initDashboard = () => {
     const refreshAll = async (options = {}) => {
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingProgress = document.getElementById('loading-progress');
-        const cachedRecords = getUploadCache(currentUploadId);
+        let cachedRecords = getUploadCache(currentUploadId);
+        if (!cachedRecords && !options.force) {
+            cachedRecords = await readPersistedRecords(currentUploadId);
+            if (cachedRecords && cachedRecords.length > 0) {
+                setUploadCache(currentUploadId, cachedRecords);
+            }
+        }
         const hasCache = Boolean(cachedRecords && cachedRecords.length > 0)
             || (loadedUploadId === currentUploadId && allRecords.length > 0);
 
-        // Fast path: when records are already cached (either in memory or rehydrated from
-        // localStorage), render instantly without the loading overlay or artificial delay.
+        // Fast path: when records are already cached in memory or IndexedDB,
+        // render instantly without the loading overlay or a billing-file re-download.
         if (hasCache && !options.force) {
             try {
                 if (cachedRecords && cachedRecords.length > 0) {
@@ -881,6 +963,9 @@ const initDashboard = () => {
                 updateDropdownOptions(allRecords);
                 updateInvoiceDropdownFromRecords(allRecords);
                 applyClientView();
+                if (tableInfo) {
+                    tableInfo.textContent = `${totalRecords.toLocaleString()} records · loaded from cache`;
+                }
             } catch (error) {
                 console.error(error);
                 if (tableInfo) {
@@ -972,7 +1057,7 @@ const initDashboard = () => {
 
     btnRefresh.addEventListener('click', () => {
         persistState();
-        refreshAll();
+        refreshAll({ force: true });
     });
 
     const applyFilters = () => {
@@ -1055,7 +1140,7 @@ const initDashboard = () => {
     });
 
     if (currentUploadId) {
-        const hydrated = readPersistedRecords(currentUploadId);
+        const hydrated = await readPersistedRecords(currentUploadId);
         if (hydrated && hydrated.length > 0) {
             setUploadCache(currentUploadId, hydrated);
         }
@@ -1069,4 +1154,6 @@ const initDashboard = () => {
     }
 };
 
-window.addEventListener('DOMContentLoaded', initDashboard);
+window.addEventListener('DOMContentLoaded', () => {
+    initDashboard().catch((error) => console.error(error));
+});

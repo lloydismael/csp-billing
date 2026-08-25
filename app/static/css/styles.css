@@ -321,18 +321,24 @@ textarea:focus-visible {
 }
 
 .metric-cards--modern {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.65rem;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1rem;
+}
+
+.metric-cards.metric-cards--modern {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.75rem;
     margin-top: 0.75rem;
 }
 
 .metric-cards .metric-card {
-    min-height: 78px;
+    min-height: 86px;
     display: grid;
     grid-template-columns: 34px minmax(0, 1fr);
     align-items: center;
     gap: 0.7rem;
-    padding: 0.72rem 0.85rem;
+    padding: 0.75rem 0.85rem;
     border-radius: 16px;
     box-shadow: 0 8px 20px rgba(15, 45, 94, 0.07);
 }
@@ -343,8 +349,8 @@ textarea:focus-visible {
 }
 
 .metric-card__icon {
-    width: 34px !important;
-    height: 34px !important;
+    width: 34px;
+    height: 34px;
     border-radius: 12px;
     font-size: 0.9rem;
 }
@@ -352,6 +358,9 @@ textarea:focus-visible {
 .metric-card h3 {
     font-size: 0.78rem;
     line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .metric-card__hint {
@@ -360,26 +369,254 @@ textarea:focus-visible {
 
 .metric-cards .metric-card .value {
     margin-top: 0.18rem;
-    font-size: clamp(1.05rem, 1.7vw, 1.38rem);
+    font-size: clamp(1.05rem, 1.7vw, 1.35rem);
     line-height: 1.05;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-@media (max-width: 1100px) {
-    .metric-cards--modern {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+.modern-table-scroll {
+    border-radius: var(--radius-lg);
+    box-shadow: inset 0 1px 0 rgba(15, 45, 94, 0.03);
+}
+
+.table-info {
+    padding: 0.5rem 0.75rem;
+    border-radius: 999px;
+    background: var(--color-primary-050);
+    color: #285177;
+    font-weight: 700;
+}
+
+.dataset .tabulator {
+    border: none;
+    font-family: 'Inter', sans-serif;
+}
+
+.dataset .tabulator .tabulator-header {
+    border-bottom: 1px solid var(--color-border);
+    background: #f4f8ff;
+}
+
+.dataset .tabulator .tabulator-col {
+    background: #f4f8ff;
+    color: #24466f;
+    font-weight: 800;
+}
+
+.dataset .tabulator-row:hover {
+    background: #f7fbff;
+}
+
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.2rem;
+}
+
+.chart-card {
+    min-height: 380px;
+    padding: 1.2rem;
+    border: 1px solid rgba(220, 229, 244, 0.9);
+    border-radius: var(--radius-xl);
+    background: #ffffff;
+    box-shadow: var(--shadow-card);
+}
+
+.chart-card__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.chart-card__header h2 {
+    margin: 0;
+    color: #17345b;
+    font-size: 1rem;
+}
+
+.chart-card__header span {
+    color: var(--color-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.chart-card canvas {
+    width: 100% !important;
+    height: 310px !important;
+}
+
+.uploads-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.uploads-table {
+    margin-top: 0;
+}
+
+.uploads-table thead th {
+    background: #f4f8ff;
+    color: #24466f;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.32rem 0.62rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: capitalize;
+}
+
+.status-badge--completed {
+    color: #0d754a;
+    background: #e9f9f1;
+}
+
+.status-badge--processing,
+.status-badge--pending {
+    color: #9a6700;
+    background: #fff6db;
+}
+
+.status-badge--failed {
+    color: #a12828;
+    background: #ffeded;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--color-muted);
+    padding: 2rem !important;
+}
+
+.loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    padding: 1.5rem;
+    background: rgba(248, 251, 255, 0.88);
+    backdrop-filter: blur(10px);
+}
+
+.loading-card {
+    width: min(420px, 92vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    border-radius: var(--radius-xl);
+    background: #ffffff;
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-soft);
+    text-align: center;
+}
+
+.loading-card h2 {
+    margin: 1rem 0 0.35rem;
+    color: #17345b;
+    font-size: 1.2rem;
+}
+
+.loading-card p {
+    margin: 0 0 1rem;
+    color: var(--color-muted);
+}
+
+.loader {
+    width: 52px;
+    height: 52px;
+    border: 5px solid #e5eefb;
+    border-top-color: var(--color-primary-500);
+    border-radius: 999px;
+    animation: spin 1s linear infinite;
+}
+
+.loading-progress-track {
+    width: 100%;
+    height: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #e7eef9;
+}
+
+.animated-progress {
+    width: 0%;
+    height: 100%;
+    background-color: var(--color-primary-500);
+    transition: width 0.3s ease;
+    background-image: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.4) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.4) 50%,
+        rgba(255, 255, 255, 0.4) 75%,
+        transparent 75%,
+        transparent
+    );
+    background-size: 20px 20px;
+    animation: fillProgress 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes fillProgress {
+    from { background-position: 20px 0; }
+    to { background-position: 0 0; }
+}
+
+@media (max-width: 900px) {
+    .portal-header__inner,
+    .dashboard-hero,
+    .section-header--split {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .header-actions {
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-start;
+    }
+
+    .dashboard-hero__meta {
+        justify-content: flex-start;
+    }
+
+    .filter-actions,
+    .filter-actions .action-button {
+        width: 100%;
+    }
+
+    .action-button {
+        justify-content: center;
     }
 }
 
-@media (max-width: 620px) {
-    .metric-cards--modern {
-        grid-template-columns: 1fr;
-    }
-
-    .metric-cards .metric-card {
-        min-height: 68px;
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.001ms !important;
     }
 }
 
@@ -929,121 +1166,18 @@ th.sortable:hover {
     }
 }
 
-/* Final compact metric-card override */
-.metrics .metric-cards.metric-cards--modern {
-    display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    gap: 0.65rem !important;
-    margin-top: 0.75rem !important;
-}
-
-.metrics .metric-cards.metric-cards--modern .metric-card {
-    min-height: 76px !important;
-    display: grid !important;
-    grid-template-columns: 34px minmax(0, 1fr) !important;
-    align-items: center !important;
-    gap: 0.7rem !important;
-    padding: 0.68rem 0.82rem !important;
-    border-radius: 16px !important;
-}
-
-.metrics .metric-card__icon {
-    width: 34px !important;
-    height: 34px !important;
-    border-radius: 12px !important;
-    font-size: 0.9rem !important;
-}
-
-.metrics .metric-card h3 {
-    font-size: 0.78rem !important;
-    line-height: 1.1 !important;
-}
-
-.metrics .metric-card__hint {
-    display: none !important;
-}
-
-.metrics .metric-card .value {
-    margin-top: 0.16rem !important;
-    font-size: clamp(1.05rem, 1.55vw, 1.34rem) !important;
-    line-height: 1.05 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-}
-
-@media (max-width: 1100px) {
-    .metrics .metric-cards.metric-cards--modern {
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    }
-}
-
-@media (max-width: 620px) {
-    .metrics .metric-cards.metric-cards--modern {
-        grid-template-columns: 1fr !important;
-    }
-}
-
-/* Final header underline reset */
-.portal-header .portal-brand,
-.portal-header .header-btn,
-.portal-header .header-btn--ios,
-.portal-header .logout-btn,
-.portal-header .portal-brand:hover,
-.portal-header .header-btn:hover,
-.portal-header .header-btn--ios:hover,
-.portal-header .logout-btn:hover,
-.portal-header .portal-brand:focus,
-.portal-header .header-btn:focus,
-.portal-header .header-btn--ios:focus,
-.portal-header .logout-btn:focus,
-.portal-header .portal-brand:active,
-.portal-header .header-btn:active,
-.portal-header .header-btn--ios:active,
-.portal-header .logout-btn:active {
+/* Header navigation should never use browser-default link underlines. */
+.portal-header a,
+.portal-header a:link,
+.portal-header a:visited,
+.portal-header a:hover,
+.portal-header a:active,
+.header-actions a,
+.header-btn,
+.header-btn--ios,
+.header-btn--ios:hover,
+.header-btn--ios.is-active,
+.logout-btn {
     text-decoration-line: none !important;
     text-decoration: none !important;
-}
-
-/* Stable chart sizing: prevent Chart.js resize feedback growth */
-.chart-grid {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
-    gap: 1rem !important;
-    align-items: stretch !important;
-}
-
-.chart-card {
-    height: 340px !important;
-    min-height: 340px !important;
-    max-height: 340px !important;
-    display: grid !important;
-    grid-template-rows: auto minmax(0, 1fr) !important;
-    overflow: hidden !important;
-}
-
-.chart-card__header {
-    min-height: 40px !important;
-    margin-bottom: 0.5rem !important;
-}
-
-.chart-card canvas {
-    display: block !important;
-    width: 100% !important;
-    height: 260px !important;
-    max-height: 260px !important;
-    min-height: 0 !important;
-}
-
-@media (max-width: 760px) {
-    .chart-card {
-        height: 300px !important;
-        min-height: 300px !important;
-        max-height: 300px !important;
-    }
-
-    .chart-card canvas {
-        height: 220px !important;
-        max-height: 220px !important;
-    }
 }

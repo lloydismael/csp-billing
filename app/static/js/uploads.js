@@ -110,10 +110,21 @@
                 return;
             }
 
+            const extension = file.name.split('.').pop()?.toLowerCase();
             panel.style.display = 'block';
-            status.textContent = 'Checking cache...';
             setProgress(0);
             summary.textContent = '';
+
+            if (extension === 'xlsx') {
+                status.textContent = 'Ready to upload';
+                setProgress(100);
+                summary.textContent = 'Excel files are converted and processed on the server after upload.';
+                isProcessing = false;
+                btnUpload.disabled = false;
+                return;
+            }
+
+            status.textContent = 'Checking cache...';
             isProcessing = true;
             btnUpload.disabled = true;
 

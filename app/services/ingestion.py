@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import datetime as dt
 import ctypes
 import logging
@@ -141,6 +142,42 @@ def _parquet_path(upload_id: int) -> Path:
     return settings.processed_dir / f"upload_{upload_id}.parquet"
 
 
+def is_supported_upload_filename(filename: str | None) -> bool:
+    if not filename:
+        return False
+    return Path(filename).suffix.lower() in {".csv", ".xlsx"}
+
+
+def _xlsx_to_csv_path(upload: Upload, xlsx_path: Path) -> Path:
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:  # pragma: no cover - dependency guard
+        raise RuntimeError("XLSX upload support requires openpyxl to be installed.") from exc
+
+    csv_path = settings.processed_dir / f"upload_{upload.id}_converted.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    csv_path.unlink(missing_ok=True)
+
+    workbook = load_workbook(filename=xlsx_path, read_only=True, data_only=True)
+    try:
+        worksheet = workbook.active
+        with csv_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            for row in worksheet.iter_rows(values_only=True):
+                writer.writerow(["" if value is None else value for value in row])
+    finally:
+        workbook.close()
+
+    return csv_path
+
+
+def _source_csv_path(upload: Upload) -> tuple[Path, bool]:
+    stored_path = Path(upload.stored_path)
+    if stored_path.suffix.lower() == ".xlsx":
+        return _xlsx_to_csv_path(upload, stored_path), True
+    return stored_path, False
+
+
 def _write_parquet_with_polars(csv_path: Path, parquet_path: Path) -> bool:
     if not _POLARS_AVAILABLE:
         return False
@@ -174,7 +211,7 @@ def _write_parquet_with_polars(csv_path: Path, parquet_path: Path) -> bool:
 
 
 def process_upload_csv(upload: Upload) -> dict:
-    csv_path = Path(upload.stored_path)
+    csv_path, cleanup_csv = _source_csv_path(upload)
     parquet_path = _parquet_path(upload.id)
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
     parquet_path.unlink(missing_ok=True)
@@ -185,50 +222,51 @@ def process_upload_csv(upload: Upload) -> dict:
         return path.as_posix().replace("'", "''")
 
     con = duckdb.connect(str(settings.duckdb_path), config={"threads": settings.duckdb_threads})
-    con.execute(f"PRAGMA threads={settings.duckdb_threads}")
-    normalized_memory_limit = _normalize_duckdb_memory_limit(settings.duckdb_memory_limit)
-    con.execute(f"PRAGMA memory_limit='{normalized_memory_limit}'")
-    con.execute(f"PRAGMA temp_directory='{_literal(settings.duckdb_temp_directory)}'")
-    con.execute("CREATE SCHEMA IF NOT EXISTS uploads")
+    try:
+        con.execute(f"PRAGMA threads={settings.duckdb_threads}")
+        normalized_memory_limit = _normalize_duckdb_memory_limit(settings.duckdb_memory_limit)
+        con.execute(f"PRAGMA memory_limit='{normalized_memory_limit}'")
+        con.execute(f"PRAGMA temp_directory='{_literal(settings.duckdb_temp_directory)}'")
+        con.execute("CREATE SCHEMA IF NOT EXISTS uploads")
 
-    if not _write_parquet_with_polars(csv_path, parquet_path):
-        copy_sql = f"""
-            COPY (
-                SELECT *
-                FROM read_csv_auto(
-                    '{_literal(csv_path)}',
-                    header=True,
-                    union_by_name=True,
-                    ignore_errors=True,
-                    timestampformat='%Y-%m-%d',
-                    sample_size=20000,
-                    all_varchar=True
-                )
-            ) TO '{_literal(parquet_path)}' (FORMAT 'parquet', COMPRESSION 'zstd');
+        if not _write_parquet_with_polars(csv_path, parquet_path):
+            copy_sql = f"""
+                COPY (
+                    SELECT *
+                    FROM read_csv_auto(
+                        '{_literal(csv_path)}',
+                        header=True,
+                        union_by_name=True,
+                        ignore_errors=True,
+                        timestampformat='%Y-%m-%d',
+                        sample_size=20000,
+                        all_varchar=True
+                    )
+                ) TO '{_literal(parquet_path)}' (FORMAT 'parquet', COMPRESSION 'zstd');
+            """
+            con.execute(copy_sql)
+
+        stats_query = f"""
+            SELECT
+                COUNT(*) AS total_rows,
+                COALESCE(SUM(TRY_CAST(PricingPreTaxTotal AS DOUBLE)), 0) AS total_pricing,
+                COALESCE(SUM(TRY_CAST(BillingPreTaxTotal AS DOUBLE)), 0) AS total_billing,
+                MIN(TRY_CAST(COALESCE(UsageDate, ChargeStartDate) AS DATE)) AS min_usage,
+                MAX(TRY_CAST(COALESCE(UsageDate, ChargeEndDate) AS DATE)) AS max_usage
+            FROM read_parquet('{_literal(parquet_path)}')
         """
+        stats = con.execute(stats_query).fetchone()
 
-        con.execute(copy_sql)
-
-    stats_query = f"""
-        SELECT
-            COUNT(*) AS total_rows,
-            COALESCE(SUM(TRY_CAST(PricingPreTaxTotal AS DOUBLE)), 0) AS total_pricing,
-            COALESCE(SUM(TRY_CAST(BillingPreTaxTotal AS DOUBLE)), 0) AS total_billing,
-            MIN(TRY_CAST(COALESCE(UsageDate, ChargeStartDate) AS DATE)) AS min_usage,
-            MAX(TRY_CAST(COALESCE(UsageDate, ChargeEndDate) AS DATE)) AS max_usage
-        FROM read_parquet('{_literal(parquet_path)}')
-    """
-
-    stats = con.execute(stats_query).fetchone()
-
-    con.execute(
-        """
-        CREATE OR REPLACE VIEW uploads.upload_{id} AS
-        SELECT * FROM read_parquet('{path}')
-        """.format(id=upload.id, path=_literal(parquet_path))
-    )
-
-    con.close()
+        con.execute(
+            """
+            CREATE OR REPLACE VIEW uploads.upload_{id} AS
+            SELECT * FROM read_parquet('{path}')
+            """.format(id=upload.id, path=_literal(parquet_path))
+        )
+    finally:
+        con.close()
+        if cleanup_csv:
+            csv_path.unlink(missing_ok=True)
 
     return {
         "row_count": stats[0] or 0,

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block base_scripts %}
-<script src="/static/js/uploads.js" defer></script>
+<script src="/static/js/uploads.js?v=8.0.1" defer></script>
 {% endblock %}
 {% block content %}
 <div class="page-grid">
@@ -8,10 +8,10 @@
         <div>
             <p class="eyebrow">Admin data operations</p>
             <h1>Manage Uploads</h1>
-            <p class="dashboard-hero__subtitle">Upload partner billing CSV files, preview local totals, and monitor ingestion status.</p>
+            <p class="dashboard-hero__subtitle">Upload partner billing CSV or Excel files, preview CSV totals locally, and monitor ingestion status.</p>
         </div>
         <div class="dashboard-hero__meta">
-            <span class="hero-chip"><i class="fa-solid fa-file-csv"></i>CSV billing files</span>
+            <span class="hero-chip"><i class="fa-solid fa-file-csv"></i>CSV or XLSX billing files</span>
             <span class="hero-chip hero-chip--strong"><i class="fa-solid fa-gauge-high"></i>Max {{ max_size }} MB</span>
         </div>
     </section>
@@ -21,14 +21,14 @@
             <div>
                 <p class="eyebrow">Step 1</p>
                 <h2>Choose and preprocess file</h2>
-                <p class="panel-subtitle">The browser previews row counts and totals before the server imports the data.</p>
+                <p class="panel-subtitle">CSV files are previewed in the browser. XLSX files are validated and converted during server import.</p>
             </div>
-            <div class="hint">Accepted format: `.csv`</div>
+            <div class="hint">Accepted formats: `.csv`, `.xlsx`</div>
         </header>
         <form id="upload-form" class="upload-form" method="post" action="/uploads" enctype="multipart/form-data">
             <label class="file-input">
-                <span>Select CSV file</span>
-                <input id="file-input" type="file" name="file" accept=".csv" required>
+                <span>Select CSV or XLSX file</span>
+                <input id="file-input" type="file" name="file" accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
             </label>
             <input id="client-meta" type="hidden" name="client_meta" value="">
             <button id="btn-upload" type="submit" class="primary"><i class="fa-solid fa-cloud-arrow-up"></i> Upload</button>
@@ -88,7 +88,7 @@
             </tr>
             {% endfor %}
             {% if uploads|length == 0 %}
-               <tr><td colspan="9" class="empty-state">No data ingested yet. Upload a billing CSV to get started.</td></tr>
+               <tr><td colspan="9" class="empty-state">No data ingested yet. Upload a billing CSV or XLSX file to get started.</td></tr>
             {% endif %}
         </tbody>
     </table>
