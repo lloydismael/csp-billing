@@ -1,0 +1,9 @@
+[submodule "skills/ui-ux-pro-max-skill"]
+	path = skills/ui-ux-pro-max-skill
+	url = https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+[submodule "skills/caveman"]
+	path = skills/caveman
+	url = https://github.com/JuliusBrussee/caveman
+[submodule "skills/rtk"]
+	path = skills/rtk
+	url = https://github.com/rtk-ai/rtk
